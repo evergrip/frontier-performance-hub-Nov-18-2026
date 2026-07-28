@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,6 +23,7 @@ export default function AddLeadDialog({ open, onOpenChange, clients, users }) {
   const fileInputRef = useRef();
 
   const [clientMode, setClientMode] = useState('existing'); // 'existing' or 'new'
+  const [clientSearch, setClientSearch] = useState('');
   const [form, setForm] = useState({
     title: '',
     client_id: '',
@@ -45,11 +46,15 @@ export default function AddLeadDialog({ open, onOpenChange, clients, users }) {
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
   const setClient = (key, val) => setNewClient(prev => ({ ...prev, [key]: val }));
+  const filteredClients = useMemo(() => clients
+    .filter((client) => `${client.company_name || ''} ${client.contact_name || ''}`.toLowerCase().includes(clientSearch.toLowerCase().trim()))
+    .sort((a, b) => (a.company_name || a.contact_name || '').localeCompare(b.company_name || b.contact_name || '')), [clients, clientSearch]);
 
   const resetForm = () => {
     setForm({ title: '', client_id: '', source: '', lead_score: 50, estimated_precon_value: '', estimated_construction_value: '', assigned_to: '', notes: '' });
     setNewClient({ contact_name: '', company_name: '', email: '', phone: '', address: '' });
     setPendingFiles([]);
+    setClientSearch('');
     setClientMode('existing');
   };
 
@@ -160,11 +165,16 @@ export default function AddLeadDialog({ open, onOpenChange, clients, users }) {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="existing" className="mt-3">
+              <TabsContent value="existing" className="mt-3 space-y-2">
+                <Input
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Search clients by name..."
+                />
                 <Select value={form.client_id || ''} onValueChange={(v) => set('client_id', v)}>
                   <SelectTrigger><SelectValue placeholder="Select client..." /></SelectTrigger>
                   <SelectContent>
-                    {clients.map(c => (
+                    {filteredClients.map(c => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.company_name || c.contact_name}
                       </SelectItem>
