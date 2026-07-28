@@ -289,8 +289,12 @@ export default function Dashboard() {
     let totalGrossProfit = 0;
     closedProjects.forEach(p => {
       const financials = calculateProjectFinancials(p);
+      const hasRecordedMargin = p.actual_margin !== undefined && p.actual_margin !== null && p.actual_margin !== '';
+      const grossProfit = hasRecordedMargin
+        ? financials.revenue * (Number(p.actual_margin) / 100)
+        : financials.grossProfit;
       totalProjectRevenue += financials.revenue;
-      totalGrossProfit += financials.grossProfit;
+      totalGrossProfit += grossProfit;
     });
     const marginPercent = totalProjectRevenue > 0 ? (totalGrossProfit / totalProjectRevenue) * 100 : 0;
 
