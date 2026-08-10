@@ -17,6 +17,7 @@ import MyMeetingsDashboard from '../components/dashboard/MyMeetingsDashboard';
 import GettingStartedChecklist from '../components/dashboard/GettingStartedChecklist';
 import MeetingReminderPopup from '../components/meetings/MeetingReminderPopup';
 import CEOGrossMarginDialog from '../components/dashboard/CEOGrossMarginDialog';
+import ProjectTypeExportButton from '../components/dashboard/ProjectTypeExportButton';
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
 
 export default function Dashboard() {
@@ -539,10 +540,13 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold text-slate-900 mb-2">Dashboard</h1>
           <p className="text-lg text-slate-500">Real-time snapshot of revenue, pipeline, and project performance</p>
         </div>
-        <Button onClick={() => setCustomizeDialogOpen(true)} variant="outline">
-          <Settings2 className="w-4 h-4 mr-2" />
-          Customize
-        </Button>
+        <div className="flex items-center gap-2">
+          <ProjectTypeExportButton projects={projects} sales={sales} />
+          <Button onClick={() => setCustomizeDialogOpen(true)} variant="outline">
+            <Settings2 className="w-4 h-4 mr-2" />
+            Customize
+          </Button>
+        </div>
       </div>
 
       {/* Meeting Reminders */}
