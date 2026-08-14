@@ -30,8 +30,8 @@ export default function Layout({ children, currentPageName }) {
   const branding = {
     company_name: settings.company_name || 'Frontier Building Group',
     logo_url: settings.logo_url || '',
-    primary_color: settings.primary_color || '#ea7924',
-    accent_color: settings.accent_color || '#d66a1f',
+    primary_color: settings.primary_color || '#F77F00',
+    accent_color: settings.accent_color || '#FCBF49',
   };
 
   useEffect(() => {
@@ -164,17 +164,19 @@ export default function Layout({ children, currentPageName }) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       <style>{`
         :root {
-          --navy: #333645;
+          --navy: #1D1D1D;
           --orange: ${branding.primary_color};
-          --slate-dark: #333333;
-          --slate-light: #CBD5E1;
-          --slate-bg: #F1F5F9;
+          --slate-dark: #2C2C2C;
+          --slate-light: #FCBF49;
+          --slate-bg: #FDFDFD;
         }
         
-        @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap');
-        
         body {
-          font-family: 'Work Sans', Helvetica, Arial, Lucida, sans-serif;
+          font-family: var(--font-body);
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+          font-family: var(--font-heading);
         }
       `}</style>
 
