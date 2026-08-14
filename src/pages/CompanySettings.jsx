@@ -46,6 +46,7 @@ export default function CompanySettings() {
   });
 
   const [fiscalData, setFiscalData] = useState({
+    gross_profit_target: '',
     revenue_target: '',
     gross_margin_target: '',
     net_margin_target: '',
@@ -82,6 +83,7 @@ export default function CompanySettings() {
     const currentGoal = fiscalGoals.find(g => g.fiscal_year === selectedFiscalYear);
     if (currentGoal) {
       setFiscalData({
+        gross_profit_target: currentGoal.gross_profit_target || '',
         revenue_target: currentGoal.revenue_target || '',
         gross_margin_target: currentGoal.gross_margin_target || '',
         net_margin_target: currentGoal.net_margin_target || '',
@@ -94,6 +96,7 @@ export default function CompanySettings() {
       });
     } else {
       setFiscalData({
+        gross_profit_target: '',
         revenue_target: '',
         gross_margin_target: '',
         net_margin_target: '',
@@ -462,6 +465,19 @@ export default function CompanySettings() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Gross Profit Target
+                </Label>
+                <Input
+                  type="number"
+                  value={fiscalData.gross_profit_target}
+                  onChange={(e) => setFiscalData({...fiscalData, gross_profit_target: e.target.value})}
+                  placeholder="1500000"
+                />
+                <p className="mt-1 text-xs text-slate-500">Primary annual performance target.</p>
+              </div>
               <div>
                 <Label className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />

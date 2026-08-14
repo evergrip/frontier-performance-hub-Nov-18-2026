@@ -9,7 +9,7 @@ import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, format, eachMon
 import { getFiscalYearDates } from '../components/utils/fiscalYear';
 import MetricDrilldownDialog from '../components/dashboard/MetricDrilldownDialog';
 import DateRangeSelector from '../components/dashboard/DateRangeSelector';
-import BuildCapacityForecast from '../components/dashboard/BuildCapacityForecast';
+import AnnualProfitForecast from '../components/dashboard/AnnualProfitForecast';
 import FiscalGoalProgress from '../components/dashboard/FiscalGoalProgress';
 import RevenueTrendChart from '../components/dashboard/RevenueTrendChart';
 import CustomizeMetricsDialog from '../components/dashboard/CustomizeMetricsDialog';
@@ -19,6 +19,7 @@ import MeetingReminderPopup from '../components/meetings/MeetingReminderPopup';
 import CEOGrossMarginDialog from '../components/dashboard/CEOGrossMarginDialog';
 import ProjectTypeExportButton from '../components/dashboard/ProjectTypeExportButton';
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
+import { calculateAnnualProfitForecast } from '@/lib/profitForecast';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -334,6 +335,11 @@ export default function Dashboard() {
   }, [filteredSales, filteredProjects, filteredLeads, scopedProjects, scopedSales, scopedLeads, dateRange]);
 
   const currentFiscalGoal = useMemo(() => fiscalGoals.find(g => g.fiscal_year === fiscalYear), [fiscalGoals, fiscalYear]);
+  const annualProfitForecast = useMemo(() => calculateAnnualProfitForecast({
+    projects: scopedProjects,
+    sales: scopedSales,
+    fiscalProjects: filteredProjects,
+  }), [scopedProjects, scopedSales, filteredProjects]);
 
   // Build capacity forecast
   const capacityForecast = useMemo(() => {
@@ -680,17 +686,10 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Build Capacity Forecast */}
-      <BuildCapacityForecast
-        capacityForecast={capacityForecast}
-        currentFiscalGoal={currentFiscalGoal}
+      <AnnualProfitForecast
+        forecast={annualProfitForecast}
+        target={currentFiscalGoal?.gross_profit_target}
         fiscalYear={fiscalYear}
-        fiscalYearStartMonth={fiscalYearStartMonth}
-        settings={settings}
-        projects={scopedProjects}
-        preconSales={scopedSales.filter(s => s.sale_type === 'preconstruction' && s.status !== 'closed_won' && s.status !== 'closed_lost')}
-        clients={clients}
-        sales={scopedSales}
       />
 
       {/* Fiscal Goal Progress */}
@@ -698,6 +697,7 @@ export default function Dashboard() {
         currentFiscalGoal={currentFiscalGoal}
         totalRevenue={metrics.totalRevenue}
         marginPercent={metrics.marginPercent}
+        actualGrossProfit={annualProfitForecast.realizedGP}
         filteredProjectsCount={filteredProjects.length}
         fiscalYear={fiscalYear}
         fiscalYearStartMonth={fiscalYearStartMonth}

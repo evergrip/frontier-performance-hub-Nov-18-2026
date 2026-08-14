@@ -6,9 +6,13 @@
       "type": "number",
       "description": "Fiscal year (e.g., 2026)"
     },
+    "gross_profit_target": {
+      "type": "number",
+      "description": "Annual gross profit target in dollars"
+    },
     "revenue_target": {
       "type": "number",
-      "description": "Annual revenue target in dollars"
+      "description": "Annual revenue target in dollars (secondary metric)"
     },
     "gross_margin_target": {
       "type": "number",

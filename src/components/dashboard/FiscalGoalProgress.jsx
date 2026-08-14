@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getFiscalYearLabel } from '../utils/fiscalYear';
 
-export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, marginPercent, filteredProjectsCount, fiscalYear, fiscalYearStartMonth }) {
+export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, marginPercent, filteredProjectsCount, actualGrossProfit, fiscalYear, fiscalYearStartMonth }) {
   if (!currentFiscalGoal) return null;
 
   return (
@@ -16,6 +16,13 @@ export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, ma
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {currentFiscalGoal.gross_profit_target && (
+            <div>
+              <p className="text-sm text-slate-600 mb-1">Gross Profit Target</p>
+              <p className="text-2xl font-bold text-slate-900">${(actualGrossProfit / 1000).toFixed(0)}K / ${(currentFiscalGoal.gross_profit_target / 1000).toFixed(0)}K</p>
+              <div className="w-full bg-slate-200 rounded-full h-2 mt-2"><div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${Math.min((actualGrossProfit / currentFiscalGoal.gross_profit_target) * 100, 100)}%` }} /></div>
+            </div>
+          )}
           {currentFiscalGoal.revenue_target && (
             <div>
               <p className="text-sm text-slate-600 mb-1">Revenue Target</p>

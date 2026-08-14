@@ -363,6 +363,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
                     <TableHead>PM</TableHead>
                     <TableHead className="text-right">Contract</TableHead>
                     <TableHead className="text-right">Actual Cost</TableHead>
+                    <TableHead className="text-right">Gross Profit</TableHead>
                     <TableHead className="text-right">Margin</TableHead>
                     <TableHead className="text-right">Est. Margin</TableHead>
                     <TableHead className="text-right">Variance</TableHead>
@@ -377,6 +378,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
                       <TableCell className="text-sm text-slate-600">{getPMName(p.project_manager_id)}</TableCell>
                       <TableCell className="text-right">${Math.round(p.contract_value || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right">${Math.round(p.trueCost || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-700">${Math.round((p.contract_value || 0) - (p.trueCost || 0)).toLocaleString()}</TableCell>
                       <TableCell className="text-right">
                         <span className={p.margin >= 20 ? 'text-emerald-600 font-semibold' : p.margin >= 10 ? 'text-amber-600 font-semibold' : 'text-red-600 font-semibold'}>
                           {p.margin.toFixed(1)}%
@@ -401,6 +403,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
                     <TableCell colSpan={3}>Totals</TableCell>
                     <TableCell className="text-right">${Math.round(kpis.totalContractValue).toLocaleString()}</TableCell>
                     <TableCell className="text-right">${Math.round(kpis.totalActualCosts).toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-emerald-600">${Math.round(kpis.totalGrossProfit).toLocaleString()}</TableCell>
                     <TableCell className="text-right text-emerald-600">{kpis.avgMargin.toFixed(1)}%</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right">
@@ -494,6 +497,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
                     <TableHead>PM</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Contract</TableHead>
+                    <TableHead className="text-right">Est. Gross Profit</TableHead>
                     <TableHead className="text-right">Total Hours</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -511,6 +515,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">${Math.round(p.contract_value || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-700">${Math.round(calculateProjectFinancials(p).grossProfit).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-bold text-blue-600">
                         {(projectHoursMap[p.id] || 0).toLocaleString()}
                       </TableCell>
@@ -519,6 +524,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
                   <TableRow className="bg-slate-50 font-bold">
                     <TableCell colSpan={4}>Totals</TableCell>
                     <TableCell className="text-right">${Math.round(kpis.activeContractValue).toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-emerald-700">${Math.round(activeProjects.reduce((sum, project) => sum + calculateProjectFinancials(project).grossProfit, 0)).toLocaleString()}</TableCell>
                     <TableCell className="text-right text-blue-600">
                       {activeProjects.reduce((sum, p) => sum + (projectHoursMap[p.id] || 0), 0).toLocaleString()}
                     </TableCell>

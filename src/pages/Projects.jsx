@@ -27,6 +27,7 @@ import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel } from '../components/utils/fiscalYear';
 import { createPageUrl } from '../utils';
 import { getCloseoutCommissionDecision } from '@/lib/projectFinancials';
+import { getProjectGrossProfit } from '@/lib/profitForecast';
 
 export default function Projects() {
   const navigate = useNavigate();
@@ -659,6 +660,7 @@ export default function Projects() {
   });
 
   const totalValue = activeProjects.reduce((sum, p) => sum + (p.contract_value || 0), 0);
+  const totalProjectedGP = activeProjects.reduce((sum, project) => sum + getProjectGrossProfit(project, sales.find(sale => sale.id === project.sale_id)).grossProfit, 0);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -691,7 +693,7 @@ export default function Projects() {
       )}
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-slate-900">{activeProjects.length}</div>
@@ -702,6 +704,12 @@ export default function Projects() {
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-emerald-600">${totalValue.toLocaleString()}</div>
             <div className="text-sm text-slate-500">Pipeline Value</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-emerald-600">${totalProjectedGP.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+            <div className="text-sm text-slate-500">Projected Gross Profit</div>
           </CardContent>
         </Card>
         <Card>
@@ -797,6 +805,10 @@ export default function Projects() {
                                         </p>
                                       );
                                     })()}
+                                    {(() => {
+                                      const financials = getProjectGrossProfit(project, sales.find(sale => sale.id === project.sale_id));
+                                      return <p className="text-[10px] text-emerald-700 mt-0.5">GP ${Math.round(financials.grossProfit).toLocaleString()} · GM {financials.grossMargin.toFixed(1)}%</p>;
+                                    })()}
                                     {project.crew_assignment && project.crew_assignment !== 'unassigned' && (
                                       <p className="text-[10px] text-slate-500 mt-0.5">{project.crew_assignment.replace('_', ' ').toUpperCase()}</p>
                                     )}
@@ -854,6 +866,7 @@ export default function Projects() {
                       <TableHead>Client</TableHead>
                       <TableHead>Contract Value</TableHead>
                       <TableHead>Actual Costs</TableHead>
+                      <TableHead>Gross Profit</TableHead>
                       <TableHead>Margin</TableHead>
                       <TableHead>Start Date</TableHead>
                       <TableHead>Completion Date</TableHead>
@@ -871,6 +884,7 @@ export default function Projects() {
                         <TableCell>{getProjectClientName(project)}</TableCell>
                         <TableCell>${((project.contract_value || 0) / 1000).toFixed(0)}k</TableCell>
                         <TableCell>${((project.actual_costs || 0) / 1000).toFixed(0)}k</TableCell>
+                        <TableCell className="font-medium text-emerald-700">${Math.round(getProjectGrossProfit(project, sales.find(sale => sale.id === project.sale_id)).grossProfit).toLocaleString()}</TableCell>
                         <TableCell>
                           <span className={`font-medium ${(project.actual_margin || 0) >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
                             {(project.actual_margin || 0).toFixed(1)}%

@@ -659,6 +659,7 @@ export default function Sales() {
 
   const totalPreconValue = preconstructionSales.reduce((sum, s) => sum + (s.contract_value || 0), 0);
   const totalConstructionValue = preconstructionSales.reduce((sum, s) => sum + (s.estimated_construction_budget || 0), 0);
+  const totalPipelineGP = preconstructionSales.reduce((sum, sale) => sum + ((sale.estimated_construction_budget || 0) * (sale.estimated_margin || 0) / 100), 0);
   const scopedProjects = hasFullPreconAccess ? projects : projects.filter(p => {
     const sale = sales.find(s => s.id === p.sale_id);
     return sale?.assigned_to === currentUser?.id;
@@ -783,7 +784,7 @@ export default function Sales() {
       )}
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-slate-900">{preconstructionSales.length}</div>
@@ -800,6 +801,12 @@ export default function Sales() {
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-amber-600">${totalConstructionValue.toLocaleString()}</div>
             <div className="text-sm text-slate-500">Est. Construction Value</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-emerald-600">${totalPipelineGP.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+            <div className="text-sm text-slate-500">Est. Pipeline GP</div>
           </CardContent>
         </Card>
         <Card>
@@ -884,6 +891,7 @@ export default function Sales() {
                                         </span>
                                       </div>
                                     </div>
+                                    <p className="mt-1 text-[10px] font-medium text-emerald-700">Est. GP ${Math.round((sale.estimated_construction_budget || 0) * (sale.estimated_margin || 0) / 100).toLocaleString()} · GM {(sale.estimated_margin || 0).toFixed(1)}%</p>
                                     {needsDrawAlert(sale) && (
                                       <div className="mt-1 flex items-center gap-1">
                                         <AlertCircle className="w-3 h-3 text-red-500" />
