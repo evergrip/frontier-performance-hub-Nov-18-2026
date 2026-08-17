@@ -339,7 +339,8 @@ export default function Dashboard() {
     projects: scopedProjects,
     sales: scopedSales,
     fiscalProjects: filteredProjects,
-  }), [scopedProjects, scopedSales, filteredProjects]);
+    dateRange,
+  }), [scopedProjects, scopedSales, filteredProjects, dateRange]);
 
   // Build capacity forecast
   const capacityForecast = useMemo(() => {

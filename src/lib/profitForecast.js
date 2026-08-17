@@ -17,7 +17,21 @@ export function getProjectGrossProfit(project, sale) {
   };
 }
 
-export function calculateAnnualProfitForecast({ projects, sales, fiscalProjects }) {
+const getAllocationPercentageInRange = (record, dateRange) => {
+  if (!dateRange?.start || !dateRange?.end) return 0;
+  return (record.monthly_revenue_allocations || []).reduce((total, allocation) => {
+    const [periodYear, periodMonth] = (allocation.period || '').split('-').map(Number);
+    const year = Number(allocation.year) || periodYear;
+    const month = Number(allocation.month) || periodMonth;
+    if (!year || !month) return total;
+    const allocationDate = new Date(year, month - 1, 1);
+    return allocationDate >= dateRange.start && allocationDate <= dateRange.end
+      ? total + number(allocation.percentage)
+      : total;
+  }, 0);
+};
+
+export function calculateAnnualProfitForecast({ projects, sales, fiscalProjects, dateRange }) {
   const constructionSales = sales.filter((sale) => sale.sale_type === 'construction');
   const saleForProject = (project) => constructionSales.find((sale) => sale.id === project.sale_id);
   const closed = fiscalProjects.filter((project) => project.status === 'closed' && project.project_type === 'construction');
@@ -27,7 +41,18 @@ export function calculateAnnualProfitForecast({ projects, sales, fiscalProjects 
   const conversionRate = historicalPrecon.length >= 3 ? converted / historicalPrecon.length : 0.5;
   const pipelineSales = sales.filter((sale) => sale.sale_type === 'preconstruction' && !['closed_won', 'closed_lost'].includes(sale.status) && sale.include_in_forecast !== false);
   const realizedGP = closed.reduce((sum, project) => sum + getProjectGrossProfit(project, saleForProject(project)).grossProfit, 0);
-  const inProgressGP = active.reduce((sum, project) => sum + getProjectGrossProfit(project, saleForProject(project)).grossProfit, 0);
-  const pipelineGP = pipelineSales.reduce((sum, sale) => sum + number(sale.estimated_construction_budget) * conversionRate * number(sale.estimated_margin) / 100, 0);
-  return { realizedGP, inProgressGP, pipelineGP, projectedGP: realizedGP + inProgressGP + pipelineGP, conversionRate, closedCount: closed.length, activeCount: active.length, pipelineCount: pipelineSales.length };
+  const activeAllocations = active.map((project) => ({ project, percentage: getAllocationPercentageInRange(project, dateRange) }));
+  const inProgressGP = activeAllocations.reduce((sum, { project, percentage }) => sum + getProjectGrossProfit(project, saleForProject(project)).grossProfit * percentage / 100, 0);
+  const pipelineAllocations = pipelineSales.map((sale) => ({ sale, percentage: getAllocationPercentageInRange(sale, dateRange) }));
+  const pipelineGP = pipelineAllocations.reduce((sum, { sale, percentage }) => sum + number(sale.estimated_construction_budget) * conversionRate * number(sale.estimated_margin) * percentage / 10000, 0);
+  return {
+    realizedGP,
+    inProgressGP,
+    pipelineGP,
+    projectedGP: realizedGP + inProgressGP + pipelineGP,
+    conversionRate,
+    closedCount: closed.length,
+    activeCount: activeAllocations.filter(({ percentage }) => percentage > 0).length,
+    pipelineCount: pipelineAllocations.filter(({ percentage }) => percentage > 0).length,
+  };
 }
