@@ -4,11 +4,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 
-export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sales, gmReports }) {
+export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sales, gmReports, dateRange }) {
   const projectData = useMemo(() => {
-    const activeProjects = projects.filter(p => !['closed'].includes(p.status) && p.project_type === 'construction');
+    const allocationInRange = (project) => (project.monthly_revenue_allocations || []).reduce((total, allocation) => {
+      const [periodYear, periodMonth] = (allocation.period || '').split('-').map(Number);
+      const year = Number(allocation.year) || periodYear;
+      const month = Number(allocation.month) || periodMonth;
+      if (!year || !month) return total;
+      const allocationDate = new Date(year, month - 1, 1);
+      return allocationDate >= dateRange.start && allocationDate <= dateRange.end
+        ? total + (Number(allocation.percentage) || 0)
+        : total;
+    }, 0);
+    const activeProjects = projects
+      .filter(p => !['closed'].includes(p.status) && p.project_type === 'construction')
+      .map(project => ({ project, allocationPercentage: allocationInRange(project) }))
+      .filter(({ allocationPercentage }) => allocationPercentage > 0);
 
-    return activeProjects.map(project => {
+    return activeProjects.map(({ project, allocationPercentage }) => {
       const sale = sales.find(s => s.id === project.sale_id);
       const originalEstimate = sale?.estimated_margin ?? null;
 
@@ -39,6 +52,7 @@ export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sal
         id: project.id,
         title: project.title,
         status: project.status,
+        allocationPercentage,
         originalEstimate,
         currentProjectedGM,
         previousProjectedGM,
@@ -56,7 +70,7 @@ export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sal
       if (b.varianceToOriginal == null) return -1;
       return a.varianceToOriginal - b.varianceToOriginal;
     });
-  }, [projects, sales, gmReports]);
+  }, [projects, sales, gmReports, dateRange]);
 
   const summary = useMemo(() => {
     const withProjections = projectData.filter(p => p.currentProjectedGM != null);
@@ -147,6 +161,7 @@ export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sal
               <TableRow className="bg-slate-50">
                 <TableHead className="text-xs">Project</TableHead>
                 <TableHead className="text-xs text-center">Status</TableHead>
+                <TableHead className="text-xs text-right">In Range</TableHead>
                 <TableHead className="text-xs text-right">Original Est.</TableHead>
                 <TableHead className="text-xs text-right">Projected GM</TableHead>
                 <TableHead className="text-xs text-center">Variance</TableHead>
@@ -158,7 +173,7 @@ export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sal
             <TableBody>
               {projectData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-sm text-slate-400 py-8">
+                  <TableCell colSpan={9} className="text-center text-sm text-slate-400 py-8">
                     No active construction projects
                   </TableCell>
                 </TableRow>
@@ -174,6 +189,7 @@ export default function CEOGrossMarginDialog({ open, onOpenChange, projects, sal
                     <TableCell className="text-center">
                       <Badge variant="outline" className="text-xs">{statusLabels[p.status] || p.status}</Badge>
                     </TableCell>
+                    <TableCell className="text-right text-sm font-medium">{p.allocationPercentage.toFixed(1)}%</TableCell>
                     <TableCell className="text-right text-sm">
                       {p.originalEstimate != null ? `${p.originalEstimate.toFixed(1)}%` : '—'}
                     </TableCell>

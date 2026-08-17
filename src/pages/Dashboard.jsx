@@ -640,7 +640,17 @@ export default function Dashboard() {
             trendDirection={metrics.marginPercent > 20 ? 'up' : 'down'} onClick={() => setDrilldownMetric('margins')} />
         )}
         {isAdmin && (() => {
-          const activeConstruction = projects.filter(p => !['closed'].includes(p.status) && p.project_type === 'construction');
+          const activeConstruction = projects.filter(p => {
+            if (p.status === 'closed' || p.project_type !== 'construction') return false;
+            return (p.monthly_revenue_allocations || []).some(allocation => {
+              const [periodYear, periodMonth] = (allocation.period || '').split('-').map(Number);
+              const year = Number(allocation.year) || periodYear;
+              const month = Number(allocation.month) || periodMonth;
+              if (!year || !month) return false;
+              const allocationDate = new Date(year, month - 1, 1);
+              return allocationDate >= dateRange.start && allocationDate <= dateRange.end && Number(allocation.percentage) > 0;
+            });
+          });
           const withProjections = activeConstruction.filter(p => {
             const latestReport = gmReports.find(r => r.project_id === p.id);
             return latestReport?.projected_gross_margin_at_completion != null;
@@ -728,6 +738,7 @@ export default function Dashboard() {
         projects={projects}
         sales={sales}
         gmReports={gmReports}
+        dateRange={dateRange}
       />
 
       {/* Customize Dialog */}
