@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
 import EditLogViewer from '../common/EditLogViewer';
 import { computeChanges, logEdit } from '../common/editLogUtils';
 
@@ -50,6 +51,15 @@ export default function EditSaleDialog({ open, onOpenChange, sale, clients, user
       queryClient.invalidateQueries(['edit-logs']);
       onOpenChange(false);
       toast.success('Sale updated');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => base44.entities.Sale.delete(sale.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['sales']);
+      onOpenChange(false);
+      toast.success('Pre-construction sale deleted');
     },
   });
 
@@ -125,11 +135,24 @@ export default function EditSaleDialog({ open, onOpenChange, sale, clients, user
             <Textarea value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} rows={3} placeholder="Internal notes..." />
           </div>
 
-          <div className="flex gap-2 justify-end pt-2">
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (confirm('Permanently delete this pre-construction sale? This cannot be undone.')) deleteMutation.mutate();
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Delete Pre-Con
+            </Button>
+            <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={updateMutation.isPending} className="bg-[#ea7924] hover:bg-[#d66a1f]">
               Save Changes
             </Button>
+            </div>
           </div>
         </form>
 
