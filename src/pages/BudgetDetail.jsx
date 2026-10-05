@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Save, DollarSign, Building2, Globe, TrendingUp, History, Receipt, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import { getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 import BudgetSummaryForm from '../components/budget/BudgetSummaryForm';
 import BudgetPLProjection from '../components/budget/BudgetPLProjection';
@@ -259,7 +260,7 @@ export default function BudgetDetail() {
             <h1 className="text-2xl font-bold text-slate-900">{budget.name}</h1>
             <Badge className={STATUS_COLORS[budget.status]}>{budget.status}</Badge>
           </div>
-          <p className="text-sm text-slate-500">FY {budget.fiscal_year}</p>
+          <p className="text-sm text-slate-500">{getFiscalYearLabel(budget.fiscal_year)}</p>
         </div>
         <div className="flex gap-2">
           {budget.status === 'draft' && (

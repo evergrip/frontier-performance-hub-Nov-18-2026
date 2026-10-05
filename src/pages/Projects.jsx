@@ -26,6 +26,7 @@ import PreconAllocationDialog from '../components/projects/PreconAllocationDialo
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import { allocationDate } from '@/components/utils/projectPeriod';
+import allocationSlots from '@/components/utils/allocationSlots';
 import { createPageUrl } from '../utils';
 import { getCloseoutCommissionDecision } from '@/lib/projectFinancials';
 import { getProjectGrossProfit } from '@/lib/profitForecast';
@@ -236,18 +237,7 @@ export default function Projects() {
       const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
       setSelectedFiscalYear(currentFiscalYear);
       
-      // Initialize allocations or use existing
-      if (project.monthly_revenue_allocations?.length > 0) {
-        setMonthlyAllocations(project.monthly_revenue_allocations);
-      } else {
-        const allocations = [];
-        for (let i = 0; i < 12; i++) {
-          const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-          const yr = month >= fiscalStartMonth ? currentFiscalYear : currentFiscalYear + 1;
-          allocations.push({ year: yr, month, percentage: 0 });
-        }
-        setMonthlyAllocations(allocations);
-      }
+      setMonthlyAllocations(allocationSlots(project.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
     }
     
     setAdvanceDialogOpen(true);
@@ -265,15 +255,7 @@ export default function Projects() {
     const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
     const currentFiscalYear = getCurrentFiscalYear(fiscalStartMonth);
     setSelectedFiscalYear(currentFiscalYear);
-    const allocations = [...(project.monthly_revenue_allocations || [])].map(a => {
-      const date = allocationDate(a);
-      return date ? { ...a, year: date.getFullYear(), month: date.getMonth() + 1 } : a;
-    });
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentFiscalYear, fiscalStartMonth - 1 + i, 1);
-      if (!allocations.some(a => a.year === date.getFullYear() && a.month === date.getMonth() + 1)) allocations.push({ year: date.getFullYear(), month: date.getMonth() + 1, percentage: 0 });
-    }
-    setMonthlyAllocations(allocations);
+    setMonthlyAllocations(allocationSlots(project.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
     setCloseoutDialogOpen(true);
   };
 
@@ -300,53 +282,7 @@ export default function Projects() {
       const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
       setSelectedFiscalYear(currentFiscalYear);
       
-      // Build a clean set of month slots for the current fiscal year
-      const buildFYSlots = (fy) => {
-        const slots = [];
-        for (let i = 0; i < 12; i++) {
-          const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-          const yr = month >= fiscalStartMonth ? fy : fy + 1;
-          slots.push({ year: yr, month, percentage: 0 });
-        }
-        return slots;
-      };
-      
-      const existingAllocs = (project.monthly_revenue_allocations || []).map(a => { const date = allocationDate(a); return date ? { ...a, year: date.getFullYear(), month: date.getMonth() + 1 } : a; });
-      const hasProperFields = existingAllocs.length > 0;
-      
-      if (hasProperFields) {
-        // Merge existing allocations into fiscal year slots
-        // Determine which fiscal years are covered
-        const fySet = new Set();
-        existingAllocs.forEach(a => {
-          if (!allocationDate(a)) return;
-          const afy = a.month >= fiscalStartMonth ? a.year : a.year - 1;
-          fySet.add(afy);
-        });
-        fySet.add(currentFiscalYear);
-        
-        let allSlots = [];
-        fySet.forEach(fy => {
-          const slots = buildFYSlots(fy);
-          slots.forEach(slot => {
-            if (!allSlots.find(s => s.year === slot.year && s.month === slot.month)) {
-              allSlots.push(slot);
-            }
-          });
-        });
-        
-        // Apply existing percentages
-        existingAllocs.forEach(a => {
-          const slot = allSlots.find(s => s.year === a.year && s.month === a.month);
-          if (slot) slot.percentage += Number(a.percentage) || 0;
-          else allSlots.push(a);
-        });
-        
-        setMonthlyAllocations(allSlots);
-      } else {
-        // No valid allocations — start fresh
-        setMonthlyAllocations(buildFYSlots(currentFiscalYear));
-      }
+      setMonthlyAllocations(allocationSlots(project.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
       setAllocationDialogOpen(true);
     }
     
@@ -369,6 +305,11 @@ export default function Projects() {
     e.preventDefault();
     const nextStatus = getNextStatus(selectedProject.status);
     if (!nextStatus) return;
+
+    if (nextStatus === 'mobilization' && (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || monthlyAllocations.reduce((s, a) => s + Number(a.percentage), 0) > 100.1)) {
+      toast.error('Correct the monthly allocation schedule before advancing this project. Total shares across all years cannot exceed 100%.');
+      return;
+    }
 
     // Require project manager when advancing to mobilization
     if (nextStatus === 'mobilization' && !projectForm.project_manager_id) {
@@ -438,7 +379,7 @@ export default function Projects() {
     
     // Validate that monthly allocations sum to 100%
     const totalPercent = monthlyAllocations.reduce((sum, a) => sum + (parseFloat(a.percentage) || 0), 0);
-    if (totalPercent !== 100) {
+    if (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || Math.abs(totalPercent - 100) > 0.1) {
       toast.error(`Monthly allocations must total 100% (currently ${totalPercent}%)`);
       return;
     }
@@ -490,7 +431,10 @@ export default function Projects() {
 
   const handleUpdateProject = (e) => {
     e.preventDefault();
-    
+    if (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || monthlyAllocations.reduce((s, a) => s + Number(a.percentage), 0) > 100.1) {
+      toast.error('Correct monthly allocations before saving; shares across all years cannot exceed 100%.');
+      return;
+    }
     const updateData = {
       projectId: selectedProject.id,
       status: selectedProject.status,

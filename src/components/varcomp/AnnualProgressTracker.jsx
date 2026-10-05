@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Target, Minus, PartyPopper, Trophy } from 'lucide-react';
+import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 const fmt = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n || 0);
 
@@ -18,7 +19,7 @@ export default function AnnualProgressTracker({ filterYear, showPayoutInfo, user
   });
 
   const { data: payouts = [] } = useQuery({
-    queryKey: ['varCompPayoutsTracker', userId],
+    queryKey: ['varCompPayoutsTracker', userId, filterYear],
     queryFn: () => userId
       ? base44.entities.VarCompPayout.filter({ user_id: userId, fiscal_year: filterYear })
       : base44.entities.VarCompPayout.filter({ fiscal_year: filterYear }),
@@ -69,7 +70,7 @@ export default function AnnualProgressTracker({ filterYear, showPayoutInfo, user
 
   // Find the latest quarter with data
   const now = new Date();
-  const currentMonth = now.getFullYear() === filterYear ? now.getMonth() + 1 : 12;
+  const currentMonth = getCurrentFiscalYear(10, now) === filterYear ? (now.getMonth() + 3) % 12 + 1 : filterYear < getCurrentFiscalYear(10, now) ? 12 : 0;
   const currentQuarter = Math.min(Math.ceil(currentMonth / 3), 4);
 
   // Determine which quarters have data
@@ -116,7 +117,7 @@ export default function AnnualProgressTracker({ filterYear, showPayoutInfo, user
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Target className="w-5 h-5 text-amber-500" />
-          Profit Share Progress — FY {filterYear}
+          Profit Share Progress — {getFiscalYearLabel(filterYear)}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">

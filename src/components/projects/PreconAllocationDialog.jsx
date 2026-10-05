@@ -8,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { getFiscalYearLabel } from '@/components/utils/fiscalYear';
 import SubAllocationDialog from './SubAllocationDialog';
+import allocationSlots from '@/components/utils/allocationSlots';
+import { allocationDate } from '@/components/utils/projectPeriod';
+import InvalidAllocationRows from '@/components/projects/InvalidAllocationRows';
 
 export default function PreconAllocationDialog({ open, onOpenChange, sale, companySettings }) {
   const queryClient = useQueryClient();
@@ -26,56 +29,19 @@ export default function PreconAllocationDialog({ open, onOpenChange, sale, compa
     const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
     setSelectedFiscalYear(currentFiscalYear);
 
-    const buildFYSlots = (fy) => {
-      const slots = [];
-      for (let i = 0; i < 12; i++) {
-        const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-        const yr = month >= fiscalStartMonth ? fy : fy + 1;
-        slots.push({ year: yr, month, percentage: 0 });
-      }
-      return slots;
-    };
-
-    const existingAllocs = (sale.monthly_revenue_allocations || []).filter(a => a.year && a.month);
-
-    if (existingAllocs.length > 0) {
-      const fySet = new Set();
-      existingAllocs.forEach(a => {
-        const afy = a.month >= fiscalStartMonth ? a.year : a.year - 1;
-        fySet.add(afy);
-      });
-      fySet.add(currentFiscalYear);
-
-      let allSlots = [];
-      fySet.forEach(fy => {
-        const slots = buildFYSlots(fy);
-        slots.forEach(slot => {
-          if (!allSlots.find(s => s.year === slot.year && s.month === slot.month)) {
-            allSlots.push(slot);
-          }
-        });
-      });
-
-      existingAllocs.forEach(a => {
-        const slot = allSlots.find(s => s.year === a.year && s.month === a.month);
-        if (slot) slot.percentage = a.percentage || 0;
-      });
-
-      setMonthlyAllocations(allSlots);
-    } else {
-      setMonthlyAllocations(buildFYSlots(currentFiscalYear));
-    }
+    setMonthlyAllocations(allocationSlots(sale.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
   }, [sale, open, fiscalStartMonth]);
 
   const saveMutation = useMutation({
     mutationFn: () => {
+      if (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || totalPct > 100.1) throw new Error('Use valid months and percentages; shares across all years cannot exceed 100%.');
       const cleanAllocations = monthlyAllocations
         .filter(a => a.year && a.month && parseFloat(a.percentage) > 0)
         .map(a => ({ year: Number(a.year), month: Number(a.month), period: `${a.year}-${String(a.month).padStart(2, '0')}`, percentage: Number(a.percentage) }));
       return base44.entities.Sale.update(sale.id, { monthly_revenue_allocations: cleanAllocations });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['sales']);
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
       onOpenChange(false);
       toast.success('Forecast allocations saved');
     }
@@ -175,6 +141,8 @@ export default function PreconAllocationDialog({ open, onOpenChange, sale, compa
             Total (all years): <span className="font-semibold">{totalPct.toFixed(1)}%</span>
           </div>
 
+          <InvalidAllocationRows allocations={monthlyAllocations} onChange={setMonthlyAllocations} />
+          {saveMutation.error && <p className="text-sm text-destructive">{saveMutation.error.message}</p>}
           <div className="flex gap-2 justify-between pt-2">
             <Button variant="outline" size="sm" className="text-xs text-orange-700 border-orange-300 hover:bg-orange-50" onClick={() => setSubDialogOpen(true)}>
               Sub/In-House Split
