@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { DollarSign, TrendingUp, Target, Building2, Briefcase, Users, Info } from 'lucide-react';
 import { format, eachMonthOfInterval, endOfMonth } from 'date-fns';
+import { projectPeriodFinancials, projectClosedDate } from '@/components/utils/projectPeriod';
+import { getCurrentFiscalYear } from '@/components/utils/fiscalYear';
+import CarryoverAllocationReview from '@/components/projects/CarryoverAllocationReview';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -62,12 +65,15 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
     return client?.company_name || client?.contact_name || 'Unknown';
   };
 
+  const startMonth = companySettings[0]?.fiscal_year_start_month || 10;
+  const periodProjects = useMemo(() => projects.filter(p => p.project_type === 'construction' && (!staffId || staffId === 'all' || p.project_manager_id === staffId)).map(p => ({ ...p, _period: projectPeriodFinancials(p, dateRange, false, startMonth) })).filter(p => p._period.percentage > 0), [projects, dateRange, staffId, startMonth]);
+
   // High level company KPIs
   const companyKPIs = useMemo(() => {
     if (!dateRange.start || !dateRange.end) return null;
 
     // All construction projects
-    const constructionProjects = projects.filter(p => p.project_type === 'construction');
+    const constructionProjects = projects.filter(p => p.project_type === 'construction' && (!staffId || staffId === 'all' || p.project_manager_id === staffId));
     const closedConstruction = constructionProjects.filter(p => {
       if (p.status !== 'closed') return false;
       const history = p.status_history || [];
@@ -77,8 +83,8 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
       return closedDate >= dateRange.start && closedDate <= dateRange.end;
     });
 
-    const conRevenue = closedConstruction.reduce((s, p) => s + (p.contract_value || 0), 0);
-    const conCosts = closedConstruction.reduce((s, p) => s + (p.actual_costs || 0), 0);
+    const conRevenue = periodProjects.reduce((s, p) => s + p._period.revenue, 0);
+    const conCosts = periodProjects.reduce((s, p) => s + p._period.costs, 0);
 
     // Precon sales closed in range
     const closedPrecon = sales.filter(s => {
@@ -120,7 +126,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
       leadConversion, preconWinRate,
       totalLeads, convertedLeads, totalPreconSales, wonPreconSales,
     };
-  }, [projects, sales, leads, dateRange]);
+  }, [projects, sales, leads, dateRange, periodProjects, staffId]);
 
   // Revenue by month (combined precon + construction)
   const monthlyRevenue = useMemo(() => {
@@ -133,11 +139,8 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
       let preconRevenue = 0;
 
       // Construction revenue from allocations
-      projects.filter(p => p.project_type === 'construction').forEach(p => {
-        const alloc = (p.monthly_revenue_allocations || []).find(a => a.period === period);
-        if (alloc && p.contract_value) {
-          conRevenue += (alloc.percentage / 100) * p.contract_value;
-        }
+      periodProjects.forEach(p => {
+        conRevenue += projectPeriodFinancials(p, { start: monthStart, end: endOfMonth(monthStart) }, false, startMonth).revenue;
       });
 
       // Precon revenue - attribute to close month
@@ -157,7 +160,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
         total: Math.round(conRevenue + preconRevenue),
       };
     });
-  }, [projects, sales, dateRange]);
+  }, [projects, sales, dateRange, periodProjects, startMonth]);
 
   // Revenue by client (top clients)
   const clientRevenue = useMemo(() => {
@@ -191,10 +194,10 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
   const goalProgress = useMemo(() => {
     if (!companyKPIs) return null;
     // Find the matching fiscal goal
-    const goal = fiscalGoals.find(g => {
-      // Simple match: just find a goal that seems relevant
-      return g.revenue_target;
-    });
+    if (!dateRange.start || !dateRange.end) return null;
+    const year = getCurrentFiscalYear(startMonth, dateRange.start);
+    if (getCurrentFiscalYear(startMonth, dateRange.end) !== year) return null;
+    const goal = fiscalGoals.find(g => Number(g.fiscal_year) === year);
     if (!goal) return null;
 
     return {
@@ -207,7 +210,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
       projectActual: companyKPIs.closedConstructionCount,
       salesVolumeTarget: goal.sales_volume_target,
     };
-  }, [companyKPIs, fiscalGoals]);
+  }, [companyKPIs, fiscalGoals, dateRange, startMonth]);
 
   // Pipeline funnel data
   const funnelData = useMemo(() => {
@@ -233,14 +236,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
   const drilldownConfigs = useMemo(() => {
     if (!companyKPIs) return {};
 
-    const closedConstruction = projects.filter(p => {
-      if (p.project_type !== 'construction' || p.status !== 'closed') return false;
-      const history = p.status_history || [];
-      const closedEntry = [...history].reverse().find(h => h.status === 'closed');
-      const closedDate = closedEntry ? new Date(closedEntry.entered_date) : (p.actual_completion_date ? new Date(p.actual_completion_date) : null);
-      if (!closedDate) return false;
-      return closedDate >= dateRange.start && closedDate <= dateRange.end;
-    });
+    const closedConstruction = periodProjects.map(p => ({ ...p, contract_value: p._period.revenue, actual_costs: p._period.costs }));
 
     const closedPrecon = sales.filter(s => {
       if (s.sale_type !== 'preconstruction' || s.status !== 'closed_won') return false;
@@ -254,7 +250,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
     return {
       totalRevenue: {
         title: 'Total Revenue Breakdown',
-        formula: `Construction revenue (contract_value of ${closedConstruction.length} closed projects) + Pre-construction revenue (contract_value of ${closedPrecon.length} closed_won precon sales). Construction: $${(companyKPIs.conRevenue/1000).toFixed(0)}K + Precon: $${(companyKPIs.preconRevenue/1000).toFixed(0)}K = $${(companyKPIs.totalRevenue/1000).toFixed(0)}K`,
+        formula: `Construction revenue (monthly recognized shares of ${closedConstruction.length} projects) + Pre-construction revenue (contract_value of ${closedPrecon.length} closed_won precon sales). Construction: $${(companyKPIs.conRevenue/1000).toFixed(0)}K + Precon: $${(companyKPIs.preconRevenue/1000).toFixed(0)}K = $${(companyKPIs.totalRevenue/1000).toFixed(0)}K`,
         items: [
           ...closedConstruction.map(p => ({ ...p, _type: 'construction', _value: p.contract_value || 0 })),
           ...closedPrecon.map(s => ({ ...s, _type: 'precon', _value: s.contract_value || 0 })),
@@ -304,7 +300,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
         columns: ['Sale', 'Client', 'Status', 'Contract Value'],
       },
     };
-  }, [companyKPIs, projects, sales, leads, dateRange]);
+  }, [companyKPIs, projects, sales, leads, dateRange, periodProjects]);
 
   if (!dateRange.start || !dateRange.end) {
     return (
@@ -320,6 +316,7 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
 
   return (
     <div className="space-y-6">
+      <CarryoverAllocationReview projects={projects.filter(p => !staffId || staffId === 'all' || p.project_manager_id === staffId)} dateRange={dateRange} companySettings={companySettings[0]} />
       {/* Company KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDrilldown('totalRevenue')}>

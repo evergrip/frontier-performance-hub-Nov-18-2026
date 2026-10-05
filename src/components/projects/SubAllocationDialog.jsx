@@ -10,7 +10,7 @@ import { getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 export default function SubAllocationDialog({ open, onOpenChange, entity, entityType, companySettings }) {
   const queryClient = useQueryClient();
-  const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+  const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
   const isProject = entityType === 'project';
 
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(null);
@@ -27,7 +27,7 @@ export default function SubAllocationDialog({ open, onOpenChange, entity, entity
     const now = new Date();
     const cm = now.getMonth() + 1;
     const cy = now.getFullYear();
-    const currentFY = fiscalStartMonth === 1 ? cy : (cm >= fiscalStartMonth ? cy + 1 : cy);
+    const currentFY = cm >= fiscalStartMonth ? cy : cy - 1;
     setSelectedFiscalYear(currentFY);
 
     // Build slots from existing revenue allocations (only months that have revenue)
@@ -78,8 +78,8 @@ export default function SubAllocationDialog({ open, onOpenChange, entity, entity
   const visibleAllocations = allocations
     .filter(alloc => {
       if (fiscalStartMonth === 1) return alloc.year === selectedFiscalYear;
-      return (alloc.month >= fiscalStartMonth && alloc.year === selectedFiscalYear - 1) ||
-             (alloc.month < fiscalStartMonth && alloc.year === selectedFiscalYear);
+      return (alloc.month >= fiscalStartMonth && alloc.year === selectedFiscalYear) ||
+                    (alloc.month < fiscalStartMonth && alloc.year === selectedFiscalYear + 1);
     })
     .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year);
 

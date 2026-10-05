@@ -64,7 +64,7 @@ export default function DateRangeSelector({
 
         {selectedDateRangeType === 'fiscal_year' && (
           <div className="mt-3">
-            <Label className="text-xs">Fiscal Year</Label>
+            <Label className="text-xs">Fiscal Year (starting year)</Label>
             <Input type="number" value={fiscalYear} onChange={(e) => setFiscalYear(parseInt(e.target.value))} />
             <p className="text-xs text-slate-500 mt-1">
               {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth, true)}

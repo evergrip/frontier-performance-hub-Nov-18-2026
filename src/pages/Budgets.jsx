@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Search, Copy, Trash2, DollarSign, TrendingUp, FileText, Sparkles, ArrowRight, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 const WIZARD_DRAFT_KEY = 'budget_wizard_draft';
 
@@ -201,7 +202,7 @@ export default function Budgets() {
                         <h3 className="font-semibold text-slate-900 truncate">{budget.name}</h3>
                         <Badge className={STATUS_COLORS[budget.status]}>{budget.status}</Badge>
                       </div>
-                      <p className="text-sm text-slate-500">FY {budget.fiscal_year}</p>
+                      <p className="text-sm text-slate-500">{getFiscalYearLabel(budget.fiscal_year)}</p>
                     </div>
                     <div className="flex items-center gap-6 text-sm">
                       <div className="text-right">

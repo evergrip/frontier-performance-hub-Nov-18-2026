@@ -2,9 +2,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getFiscalYearLabel } from '../utils/fiscalYear';
+import { Link } from 'react-router-dom';
 
 export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, marginPercent, filteredProjectsCount, actualGrossProfit, fiscalYear, fiscalYearStartMonth }) {
-  if (!currentFiscalGoal) return null;
+  if (!currentFiscalGoal) return <Card><CardHeader><CardTitle>{getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} Goals</CardTitle></CardHeader><CardContent><p>No targets have been set for this fiscal year. Prior-year targets are preserved separately.</p><Link className="text-primary underline" to="/CompanySettings">Set annual goals</Link></CardContent></Card>;
 
   return (
     <Card className="border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">

@@ -12,14 +12,15 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import QuarterlyGateStatus from './QuarterlyGateStatus';
 import AnnualProgressTracker from './AnnualProgressTracker';
+import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 
 export default function NetProfitEntryTab() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
-  const [form, setForm] = useState({ period_type: 'monthly', fiscal_year: new Date().getFullYear(), period_number: 1, total_revenue: 0, total_expenses: 0, net_profit_dollars: 0, net_profit_percent: 0, notes: '' });
+  const [filterYear, setFilterYear] = useState(getCurrentFiscalYear());
+  const [form, setForm] = useState({ period_type: 'monthly', fiscal_year: getCurrentFiscalYear(), period_number: 1, total_revenue: 0, total_expenses: 0, net_profit_dollars: 0, net_profit_percent: 0, notes: '' });
   const queryClient = useQueryClient();
 
   const { data: entries = [], isLoading } = useQuery({
@@ -54,7 +55,7 @@ export default function NetProfitEntryTab() {
   };
 
   const handleSave = () => {
-    const label = form.period_type === 'monthly' ? `${MONTHS[form.period_number - 1]} ${form.fiscal_year}` : form.period_type === 'quarterly' ? `Q${form.period_number} ${form.fiscal_year}` : `FY ${form.fiscal_year}`;
+    const label = form.period_type === 'monthly' ? `${MONTHS[form.period_number - 1]} ${Number(form.fiscal_year) + (Number(form.period_number) > 3 ? 1 : 0)}` : form.period_type === 'quarterly' ? `Q${form.period_number} ${getFiscalYearLabel(form.fiscal_year)}` : getFiscalYearLabel(form.fiscal_year);
     const data = { ...form, period_label: label };
     if (editing) {
       const { id, created_date, updated_date, created_by, ...cleanData } = data;

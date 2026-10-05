@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, X } from 'lucide-react';
+import { getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 const SUGGESTED_DEPARTMENTS = [
   'Sales',
@@ -59,12 +60,13 @@ export default function WizardBasicsStep({ form, setForm }) {
           />
         </div>
         <div>
-          <Label>Fiscal Year *</Label>
+          <Label>Fiscal Year (starting year) *</Label>
           <Input
             type="number"
             value={form.fiscal_year}
             onChange={e => setForm(f => ({ ...f, fiscal_year: parseInt(e.target.value) || '' }))}
           />
+          {form.fiscal_year && <p className="text-xs text-slate-500 mt-1">{getFiscalYearLabel(form.fiscal_year)}</p>}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
+import { allocationPercentage, projectPeriodFinancials } from '@/components/utils/projectPeriod';
 
 const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
@@ -17,32 +18,20 @@ export function getProjectGrossProfit(project, sale) {
   };
 }
 
-const getAllocationPercentageInRange = (record, dateRange) => {
-  if (!dateRange?.start || !dateRange?.end) return 0;
-  return (record.monthly_revenue_allocations || []).reduce((total, allocation) => {
-    const [periodYear, periodMonth] = (allocation.period || '').split('-').map(Number);
-    const year = Number(allocation.year) || periodYear;
-    const month = Number(allocation.month) || periodMonth;
-    if (!year || !month) return total;
-    const allocationDate = new Date(year, month - 1, 1);
-    return allocationDate >= dateRange.start && allocationDate <= dateRange.end
-      ? total + number(allocation.percentage)
-      : total;
-  }, 0);
-};
+const getAllocationPercentageInRange = (record, dateRange) => allocationPercentage(record, dateRange);
 
 export function calculateAnnualProfitForecast({ projects, sales, fiscalProjects, dateRange }) {
   const constructionSales = sales.filter((sale) => sale.sale_type === 'construction');
   const saleForProject = (project) => constructionSales.find((sale) => sale.id === project.sale_id);
-  const closed = fiscalProjects.filter((project) => project.status === 'closed' && project.project_type === 'construction');
+  const closed = projects.filter(project => project.status === 'closed' && project.project_type === 'construction' && projectPeriodFinancials(project, dateRange).percentage > 0);
   const active = projects.filter((project) => project.status !== 'closed' && project.project_type === 'construction');
   const historicalPrecon = sales.filter((sale) => sale.sale_type === 'preconstruction' && ['closed_won', 'closed_lost'].includes(sale.status));
   const converted = historicalPrecon.filter((sale) => sale.status === 'closed_won' && constructionSales.some((construction) => construction.linked_precon_sale_id === sale.id)).length;
   const conversionRate = historicalPrecon.length >= 3 ? converted / historicalPrecon.length : 0.5;
   const pipelineSales = sales.filter((sale) => sale.sale_type === 'preconstruction' && !['closed_won', 'closed_lost'].includes(sale.status) && sale.include_in_forecast !== false);
-  const realizedGP = closed.reduce((sum, project) => sum + getProjectGrossProfit(project, saleForProject(project)).grossProfit, 0);
-  const activeAllocations = active.map((project) => ({ project, percentage: getAllocationPercentageInRange(project, dateRange) }));
-  const inProgressGP = activeAllocations.reduce((sum, { project, percentage }) => sum + getProjectGrossProfit(project, saleForProject(project)).grossProfit * percentage / 100, 0);
+  const realizedGP = projects.filter(p => p.project_type === 'construction').reduce((sum, p) => sum + projectPeriodFinancials(p, dateRange).grossProfit, 0);
+  const activeAllocations = active.filter(p => p.include_in_forecast !== false).map(project => ({ project, percentage: getAllocationPercentageInRange(project, dateRange) - allocationPercentage(project, dateRange, true) }));
+  const inProgressGP = activeAllocations.reduce((sum, { project, percentage }) => sum + projectPeriodFinancials(project, dateRange, true).grossMargin * number(project.contract_value) * percentage / 10000, 0);
   const pipelineAllocations = pipelineSales.map((sale) => ({ sale, percentage: getAllocationPercentageInRange(sale, dateRange) }));
   const pipelineGP = pipelineAllocations.reduce((sum, { sale, percentage }) => sum + number(sale.estimated_construction_budget) * conversionRate * number(sale.estimated_margin) * percentage / 10000, 0);
   return {

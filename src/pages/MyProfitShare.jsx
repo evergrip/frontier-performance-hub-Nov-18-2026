@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DollarSign, TrendingUp, Calendar } from 'lucide-react';
 import AnnualProgressTracker from '../components/varcomp/AnnualProgressTracker';
+import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 export default function MyProfitShare() {
   const [user, setUser] = useState(null);
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [filterYear, setFilterYear] = useState(() => getCurrentFiscalYear());
 
   useEffect(() => {
     base44.auth.me().then(setUser);
@@ -44,7 +45,7 @@ export default function MyProfitShare() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Label>Fiscal Year</Label>
+        <Label>{getFiscalYearLabel(filterYear)}</Label>
         <Input type="number" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))} className="w-28" />
       </div>
 

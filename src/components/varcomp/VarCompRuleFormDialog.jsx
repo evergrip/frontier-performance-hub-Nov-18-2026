@@ -10,12 +10,13 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 
 const defaultRule = {
   rule_name: '',
   description: '',
   status: 'draft',
-  effective_fiscal_year: new Date().getFullYear(),
+  effective_fiscal_year: getCurrentFiscalYear(),
   payout_gate_type: 'annual_np_percent',
   payout_gate_value: 10,
   company_retention_percent: 20,

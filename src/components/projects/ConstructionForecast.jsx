@@ -13,7 +13,7 @@ import { calculateAllocatedRevenue, getProjectRevenue } from '@/lib/projectFinan
 
 export default function ConstructionForecast({ projects, clients, sales, companySettings, onProjectClick, preconSales, onPreconSaleClick }) {
   const queryClient = useQueryClient();
-  const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+  const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
 
   const toggleForecastMutation = useMutation({
     mutationFn: ({ id, isPrecon, include_in_forecast }) => {
@@ -43,7 +43,7 @@ export default function ConstructionForecast({ projects, clients, sales, company
     const cm = now.getMonth() + 1;
     const cy = now.getFullYear();
     if (fiscalStartMonth === 1) return cy;
-    return cm >= fiscalStartMonth ? cy + 1 : cy;
+    return cm >= fiscalStartMonth ? cy : cy - 1;
   }, [fiscalStartMonth]);
 
   const [selectedFY, setSelectedFY] = useState(defaultFY);
@@ -53,7 +53,7 @@ export default function ConstructionForecast({ projects, clients, sales, company
     const months = [];
     for (let i = 0; i < 12; i++) {
       const m = ((fiscalStartMonth - 1 + i) % 12) + 1;
-      const y = fiscalStartMonth === 1 ? selectedFY : (m >= fiscalStartMonth ? selectedFY - 1 : selectedFY);
+      const y = m >= fiscalStartMonth ? selectedFY : selectedFY + 1;
       const label = new Date(y, m - 1).toLocaleString('default', { month: 'short' }) + ' ' + String(y).slice(-2);
       months.push({ year: y, month: m, label });
     }

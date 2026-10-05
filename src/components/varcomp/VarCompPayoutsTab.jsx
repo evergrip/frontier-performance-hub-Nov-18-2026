@@ -6,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 export default function VarCompPayoutsTab() {
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [filterYear, setFilterYear] = useState(() => getCurrentFiscalYear());
 
   const { data: payouts = [], isLoading } = useQuery({
     queryKey: ['varCompPayouts'],
@@ -27,12 +28,12 @@ export default function VarCompPayoutsTab() {
   return (
     <div className="space-y-4 mt-4">
       <div className="flex items-center gap-3">
-        <Label>Fiscal Year</Label>
+        <Label>Fiscal Year (starting year)</Label>
         <Input type="number" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))} className="w-28" />
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Payouts — FY {filterYear}</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Payouts — {getFiscalYearLabel(filterYear)}</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" /></div> : (
             <Table>

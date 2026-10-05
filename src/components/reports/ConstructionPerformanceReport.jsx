@@ -9,6 +9,8 @@ import { Building2, DollarSign, Clock, TrendingUp, TrendingDown, AlertTriangle, 
 import { format, differenceInDays, eachMonthOfInterval, endOfMonth } from 'date-fns';
 import DataInspector from '../common/DataInspector';
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
+import { projectPeriodFinancials } from '@/components/utils/projectPeriod';
+import CarryoverAllocationReview from '@/components/projects/CarryoverAllocationReview';
 
 export default function ConstructionPerformanceReport({ dateRange, staffId }) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -34,6 +36,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
     setInspectorOpen(true);
   };
 
+  const { data: companySettings = [] } = useQuery({ queryKey: ['companySettings'], queryFn: () => base44.entities.CompanySettings.list() });
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
     queryFn: () => base44.entities.Project.list(),
@@ -114,11 +117,12 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
     return constructionProjects.filter(p => p.status !== 'closed');
   }, [constructionProjects]);
 
+  const recognizedProjects = useMemo(() => constructionProjects.map(p => ({ ...p, _period: projectPeriodFinancials(p, dateRange) })).filter(p => p._period.percentage > 0), [constructionProjects, dateRange]);
+
   // KPI Summaries
   const kpis = useMemo(() => {
-    const totalContractValue = closedInRange.reduce((s, p) => s + (p.contract_value || 0), 0);
-    
-    const totalActualCosts = closedInRange.reduce((s, p) => s + calculateProjectFinancials(p).costs, 0);
+    const totalContractValue = recognizedProjects.reduce((s, p) => s + p._period.revenue, 0);
+    const totalActualCosts = recognizedProjects.reduce((s, p) => s + p._period.costs, 0);
     const totalGrossProfit = totalContractValue - totalActualCosts;
     const avgMargin = totalContractValue > 0 ? (totalGrossProfit / totalContractValue) * 100 : 0;
 
@@ -161,18 +165,18 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
       avgVariance,
       activeContractValue,
     };
-  }, [closedInRange, activeProjects, sales]);
+  }, [closedInRange, activeProjects, sales, recognizedProjects]);
 
   // Project-level detail table for closed projects
   const closedProjectDetails = useMemo(() => {
-    return closedInRange.map(p => {
-      const financials = calculateProjectFinancials(p);
+    return recognizedProjects.map(p => {
+      const financials = p._period;
       const linkedSale = sales.find(s => s.id === p.sale_id);
       const estimatedMargin = linkedSale?.estimated_margin;
       const variance = estimatedMargin != null ? financials.grossMargin - estimatedMargin : null;
-      return { ...p, variance, margin: financials.grossMargin, trueCost: financials.costs, estimatedMargin };
+      return { ...p, contract_value: financials.revenue, variance, margin: financials.grossMargin, trueCost: financials.costs, estimatedMargin };
     }).sort((a, b) => (b.contract_value || 0) - (a.contract_value || 0));
-  }, [closedInRange, sales]);
+  }, [recognizedProjects, sales]);
 
   // Monthly revenue recognition from allocations
   const monthlyRevenue = useMemo(() => {
@@ -186,23 +190,9 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
       let costAllocated = 0;
 
       constructionProjects.forEach(p => {
-        // Allocations store year/month separately (sometimes as floats), not as a period string
-        const monthNum = monthStart.getMonth() + 1;
-        const yearNum = monthStart.getFullYear();
-        const alloc = (p.monthly_revenue_allocations || []).find(a => 
-          (a.period === period) || (Number(a.year) === yearNum && Number(a.month) === monthNum)
-        );
-        if (alloc && p.contract_value) {
-          const revenueBase = p.contract_value;
-          const amount = (alloc.percentage / 100) * revenueBase;
-          recognized += amount;
-          // Estimate cost proportionally using margin
-          if (p.actual_margin) {
-            costAllocated += amount * (1 - (p.actual_margin / 100));
-          } else if (p.actual_costs && p.contract_value) {
-            costAllocated += (alloc.percentage / 100) * p.actual_costs;
-          }
-        }
+        const financials = projectPeriodFinancials(p, { start: monthStart, end: monthEnd });
+        recognized += financials.revenue;
+        costAllocated += financials.costs;
       });
 
       return {
@@ -232,12 +222,12 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
   // PM performance
   const pmPerformance = useMemo(() => {
     const pms = {};
-    closedInRange.forEach(p => {
+    recognizedProjects.forEach(p => {
       const pmId = p.project_manager_id || 'unassigned';
       if (!pms[pmId]) pms[pmId] = { projects: 0, totalContract: 0, totalCost: 0 };
       pms[pmId].projects++;
-      pms[pmId].totalContract += p.contract_value || 0;
-      pms[pmId].totalCost += p.actual_costs || 0;
+      pms[pmId].totalContract += p._period.revenue;
+      pms[pmId].totalCost += p._period.costs;
     });
     return Object.entries(pms).map(([pmId, data]) => ({
       name: getPMName(pmId),
@@ -245,7 +235,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
       margin: data.totalContract > 0 ? ((data.totalContract - data.totalCost) / data.totalContract * 100) : 0,
       profit: data.totalContract - data.totalCost,
     })).sort((a, b) => b.totalContract - a.totalContract);
-  }, [closedInRange, users]);
+  }, [recognizedProjects, users]);
 
   if (!dateRange.start || !dateRange.end) {
     return (
@@ -259,6 +249,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
 
   return (
     <div className="space-y-6">
+      <CarryoverAllocationReview projects={constructionProjects} dateRange={dateRange} companySettings={companySettings[0]} />
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -270,7 +261,7 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
         </Card>
         <Card>
           <CardContent className="pt-6 text-center">
-            <p className="text-sm text-slate-600">Revenue (Closed)</p>
+            <p className="text-sm text-slate-600">Recognized Revenue</p>
             <p className="text-3xl font-bold text-emerald-600">${(kpis.totalContractValue / 1000).toFixed(0)}K</p>
             <p className="text-xs text-slate-500 mt-1">contract value</p>
           </CardContent>
@@ -347,12 +338,12 @@ export default function ConstructionPerformanceReport({ dateRange, staffId }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-slate-600" />
-            Closed Projects Detail
+            Recognized Project Shares
           </CardTitle>
         </CardHeader>
         <CardContent>
           {closedProjectDetails.length === 0 ? (
-            <p className="text-center py-8 text-slate-500">No projects closed in the selected period</p>
+            <p className="text-center py-8 text-slate-500">No recognized project allocations in the selected period</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>

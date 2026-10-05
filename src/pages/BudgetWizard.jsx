@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, ArrowRight, Loader2, Sparkles, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 
 import WizardStepNav from '../components/budget/wizard/WizardStepNav';
 import WizardBasicsStep from '../components/budget/wizard/WizardBasicsStep';
@@ -53,7 +54,7 @@ function clearDraft() {
 
 const EMPTY_FORM = {
   name: '',
-  fiscal_year: new Date().getFullYear() + 1,
+  fiscal_year: getCurrentFiscalYear(),
   description: '',
   gross_revenue_projection: '',
   net_profit_target_percentage: '',

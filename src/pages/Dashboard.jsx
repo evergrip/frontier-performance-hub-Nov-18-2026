@@ -6,7 +6,9 @@ import StatCard from '../components/common/StatCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, format, eachMonthOfInterval } from 'date-fns';
-import { getFiscalYearDates } from '../components/utils/fiscalYear';
+import { getFiscalYearDates, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
+import { projectPeriodFinancials, projectClosedDate } from '@/components/utils/projectPeriod';
+import CarryoverAllocationReview from '@/components/projects/CarryoverAllocationReview';
 import MetricDrilldownDialog from '../components/dashboard/MetricDrilldownDialog';
 import DateRangeSelector from '../components/dashboard/DateRangeSelector';
 import AnnualProfitForecast from '../components/dashboard/AnnualProfitForecast';
@@ -30,7 +32,7 @@ export default function Dashboard() {
   const [selectedQuarter, setSelectedQuarter] = useState(Math.floor(new Date().getMonth() / 3) + 1);
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [fiscalYear, setFiscalYear] = useState(new Date().getFullYear());
+  const [fiscalYear, setFiscalYear] = useState(() => getCurrentFiscalYear());
   const [drilldownMetric, setDrilldownMetric] = useState(null);
   const [ceoGMDialogOpen, setCeoGMDialogOpen] = useState(false);
 
@@ -146,6 +148,7 @@ export default function Dashboard() {
 
   const settings = companySettings[0] || {};
   const fiscalYearStartMonth = settings.fiscal_year_start_month || 10;
+  useEffect(() => { setFiscalYear(getCurrentFiscalYear(fiscalYearStartMonth)); }, [fiscalYearStartMonth]);
 
   const dateRange = useMemo(() => {
     if (selectedDateRangeType === 'month') {
@@ -174,6 +177,10 @@ export default function Dashboard() {
   // Helper: get effective date for a sale using phase_history dates
   const getSaleEffectiveDate = (sale) => {
     const history = sale.phase_history || [];
+    if (sale.status === 'closed_won') {
+      const closed = [...history].reverse().find(h => h.status === 'closed_won');
+      return new Date(closed?.entered_date || sale.close_date || sale.created_date);
+    }
     if (history.length > 0) return new Date(history[0].entered_date);
     if (sale.close_date) return new Date(sale.close_date);
     return new Date(sale.created_date);
@@ -181,6 +188,7 @@ export default function Dashboard() {
 
   // Helper: get effective date for a project using status_history dates
   const getProjectEffectiveDate = (project) => {
+    if (project.status === 'closed') return projectClosedDate(project);
     const history = project.status_history || [];
     const constructionEntry = history.find(h => h.status === 'awaiting_to_be_scheduled');
     if (constructionEntry) return new Date(constructionEntry.entered_date);
@@ -226,9 +234,10 @@ export default function Dashboard() {
 
   const filteredProjects = useMemo(() => scopedProjects.filter(project => {
     if (!dateRange.start || !dateRange.end) return true;
+    if (project.project_type === 'construction') return projectPeriodFinancials(project, dateRange, true, fiscalYearStartMonth).percentage > 0;
     const effectiveDate = getProjectEffectiveDate(project);
     return effectiveDate >= dateRange.start && effectiveDate <= dateRange.end;
-  }), [scopedProjects, dateRange]);
+  }), [scopedProjects, dateRange, fiscalYearStartMonth]);
 
   const filteredLeads = useMemo(() => scopedLeads.filter(lead => {
     if (!dateRange.start || !dateRange.end) return true;
@@ -247,58 +256,18 @@ export default function Dashboard() {
     
     const preconRevenue = closedSales.filter(s => s.sale_type === 'preconstruction').reduce((sum, s) => sum + (s.contract_value || 0), 0);
     
-    const closedConstructionRevenue = closedProjects
-      .filter(p => p.project_type === 'construction')
-      .reduce((sum, p) => sum + (p.contract_value || 0), 0);
-
-    const activeRecognizedRevenue = scopedProjects
-      .filter(p => 
-        p.project_type === 'construction' && 
-        ['active_construction', 'substantial_completion_closeout'].includes(p.status) &&
-        p.monthly_revenue_allocations?.length > 0
-      )
-      .reduce((sum, p) => {
-        const revenueBase = p.contract_value || 0;
-        const pastAllocations = (p.monthly_revenue_allocations || []).filter(a => {
-          let aYear = a.year != null ? Number(a.year) : null;
-          let aMonth = a.month != null ? Number(a.month) : null;
-          if (!aYear && a.period) {
-            const parts = a.period.split('-');
-            aYear = parseInt(parts[0]);
-            aMonth = parseInt(parts[1]);
-          }
-          if (!aYear || !aMonth) return false;
-          const isPast = (aYear < currentYear) || (aYear === currentYear && aMonth < currentMonth);
-          if (!isPast) return false;
-          if (dateRange.start && dateRange.end) {
-            const allocDate = new Date(aYear, aMonth - 1, 1);
-            if (allocDate < dateRange.start || allocDate > dateRange.end) return false;
-          }
-          return true;
-        });
-        const pastPercent = pastAllocations.reduce((s, a) => s + (a.percentage || 0), 0);
-        return sum + (revenueBase * pastPercent / 100);
-      }, 0);
-
-    const constructionRevenue = closedConstructionRevenue + activeRecognizedRevenue;
+    const constructionFinancials = scopedProjects.filter(p => p.project_type === 'construction').map(p => ({ project: p, ...projectPeriodFinancials(p, dateRange, false, fiscalYearStartMonth) }));
+    const activeRecognizedRevenue = constructionFinancials.filter(f => f.project.status !== 'closed').reduce((sum, f) => sum + f.revenue, 0);
+    const constructionRevenue = constructionFinancials.reduce((sum, f) => sum + f.revenue, 0);
     const totalRevenue = preconRevenue + constructionRevenue;
     
     const activeProjectsCount = scopedProjects.filter(p => !['closed', 'completion'].includes(p.status)).length;
     const activeSalesCount = scopedSales.filter(s => ['feasibility', 'design_material_selections', 'engineering_permits', 'pending_construction_sale'].includes(s.status)).length;
     const activeLeadsCount = scopedLeads.filter(l => !['converted', 'disqualified'].includes(l.status)).length;
     
-    let totalProjectRevenue = 0;
-    let totalGrossProfit = 0;
-    closedProjects.forEach(p => {
-      const financials = calculateProjectFinancials(p);
-      const hasRecordedMargin = p.actual_margin !== undefined && p.actual_margin !== null && p.actual_margin !== '';
-      const grossProfit = hasRecordedMargin
-        ? financials.revenue * (Number(p.actual_margin) / 100)
-        : financials.grossProfit;
-      totalProjectRevenue += financials.revenue;
-      totalGrossProfit += grossProfit;
-    });
-    const marginPercent = totalProjectRevenue > 0 ? (totalGrossProfit / totalProjectRevenue) * 100 : 0;
+    const totalProjectRevenue = constructionRevenue;
+    const totalGrossProfit = constructionFinancials.reduce((sum, f) => sum + f.grossProfit, 0);
+    const marginPercent = totalProjectRevenue > 0 ? totalGrossProfit / totalProjectRevenue * 100 : 0;
 
     const closedConstructionProjects = closedProjects.filter(p => p.project_type === 'construction');
     const avgProjectSize = closedConstructionProjects.length > 0
@@ -349,7 +318,7 @@ export default function Dashboard() {
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
-    const fiscalYearEnd = new Date(fiscalYear, fiscalYearStartMonth - 1, 0);
+    const fiscalYearEnd = getFiscalYearDates(fiscalYear, fiscalYearStartMonth).endDate;
     const monthsLeftInYear = Math.max(0, (fiscalYearEnd.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
     
     const capacitySchedule = (settings.monthly_capacity_schedule || [])
@@ -491,31 +460,7 @@ export default function Dashboard() {
         return d >= mStart && d <= mEnd;
       }).reduce((sum, s) => sum + (s.contract_value || 0), 0);
       
-      let monthConstruction = 0;
-      const targetPeriod = `${yearNum}-${String(monthNum).padStart(2, '0')}`;
-      scopedProjects.filter(p => p.project_type === 'construction').forEach(p => {
-        const allocations = p.monthly_revenue_allocations || [];
-        const alloc = allocations.find(a => {
-          if (a.period === targetPeriod) return true;
-          let aYear = a.year != null ? Number(a.year) : null;
-          let aMonth = a.month != null ? Number(a.month) : null;
-          if (!aYear && a.period) { const parts = a.period.split('-'); aYear = parseInt(parts[0]); aMonth = parseInt(parts[1]); }
-          return aYear === yearNum && aMonth === monthNum;
-        });
-        if (alloc && alloc.percentage > 0) {
-          monthConstruction += (p.contract_value || 0) * (alloc.percentage / 100);
-        }
-      });
-
-      scopedProjects.filter(p => {
-        if (p.project_type !== 'construction' || p.status !== 'closed') return false;
-        if (p.monthly_revenue_allocations?.length > 0) return false;
-        const d = getProjectEffectiveDate(p);
-        return d >= mStart && d <= mEnd;
-      }).forEach(p => {
-        monthConstruction += p.contract_value || 0;
-      });
-      
+      const monthConstruction = scopedProjects.filter(p => p.project_type === 'construction').reduce((sum, p) => sum + projectPeriodFinancials(p, { start: mStart, end: mEnd }, false, fiscalYearStartMonth).revenue, 0);
       return { month: format(month, 'MMM yy'), revenue: (monthPrecon + monthConstruction) / 1000 };
     });
   }, [dateRange, scopedSales, scopedProjects]);
@@ -548,7 +493,7 @@ export default function Dashboard() {
           <p className="text-lg text-slate-500">Real-time snapshot of revenue, pipeline, and project performance</p>
         </div>
         <div className="flex items-center gap-2">
-          <ProjectTypeExportButton projects={projects} sales={sales} />
+          <ProjectTypeExportButton projects={scopedProjects} sales={scopedSales} dateRange={dateRange} />
           <Button onClick={() => setCustomizeDialogOpen(true)} variant="outline">
             <Settings2 className="w-4 h-4 mr-2" />
             Customize
@@ -603,10 +548,12 @@ export default function Dashboard() {
         fiscalYearStartMonth={fiscalYearStartMonth}
       />
 
+      <CarryoverAllocationReview projects={scopedProjects} dateRange={dateRange} companySettings={settings} />
+
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {visibleMetrics.totalRevenue && (
-          <StatCard title="Total Revenue (Closed)" value={`$${(metrics.totalRevenue / 1000).toFixed(0)}K`} icon={DollarSign}
+          <StatCard title="Recognized Revenue" value={`$${(metrics.totalRevenue / 1000).toFixed(0)}K`} icon={DollarSign}
             subtitle={`${metrics.closedSales.length} closed sales`} onClick={() => setDrilldownMetric('totalRevenue')} />
         )}
         {visibleMetrics.preconRevenue && (
@@ -632,7 +579,7 @@ export default function Dashboard() {
         )}
         {visibleMetrics.grossProfit && (
           <StatCard title="Total Gross Profit" value={`$${(metrics.totalGrossProfit / 1000).toFixed(0)}K`} icon={DollarSign}
-            subtitle={`${metrics.closedProjects.length} closed projects`} onClick={() => setDrilldownMetric('grossProfit')} />
+            subtitle="Allocated to selected period" onClick={() => setDrilldownMetric('grossProfit')} />
         )}
         {visibleMetrics.margins && (
           <StatCard title="Gross Margin %" value={`${metrics.marginPercent.toFixed(1)}%`} icon={TrendingUp}
@@ -701,6 +648,7 @@ export default function Dashboard() {
         forecast={annualProfitForecast}
         target={currentFiscalGoal?.gross_profit_target}
         fiscalYear={fiscalYear}
+        fiscalYearStartMonth={fiscalYearStartMonth}
       />
 
       {/* Fiscal Goal Progress */}
@@ -709,7 +657,7 @@ export default function Dashboard() {
         totalRevenue={metrics.totalRevenue}
         marginPercent={metrics.marginPercent}
         actualGrossProfit={annualProfitForecast.realizedGP}
-        filteredProjectsCount={filteredProjects.length}
+        filteredProjectsCount={scopedProjects.filter(p => p.status === 'closed' && projectClosedDate(p) >= dateRange.start && projectClosedDate(p) <= dateRange.end).length}
         fiscalYear={fiscalYear}
         fiscalYearStartMonth={fiscalYearStartMonth}
       />

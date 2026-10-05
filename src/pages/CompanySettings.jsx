@@ -12,11 +12,12 @@ import { Building2, Save, TrendingUp, DollarSign, FileText } from 'lucide-react'
 import { toast } from 'sonner';
 import MonthlyCapacitySchedule from '../components/admin/MonthlyCapacitySchedule';
 import BrandingSettingsSection from '../components/admin/BrandingSettingsSection';
+import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
 export default function CompanySettings() {
   const queryClient = useQueryClient();
   const [settingsId, setSettingsId] = useState(null);
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState(new Date().getFullYear());
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState(() => getCurrentFiscalYear());
 
   const { data: settings = [] } = useQuery({
     queryKey: ['companySettings'],
@@ -78,6 +79,9 @@ export default function CompanySettings() {
       });
     }
   }, [settings]);
+
+  const fiscalStartMonth = Number(settings[0]?.fiscal_year_start_month) || 10;
+  React.useEffect(() => { setSelectedFiscalYear(getCurrentFiscalYear(fiscalStartMonth)); }, [fiscalStartMonth]);
 
   React.useEffect(() => {
     const currentGoal = fiscalGoals.find(g => g.fiscal_year === selectedFiscalYear);
@@ -458,7 +462,7 @@ export default function CompanySettings() {
                 </SelectTrigger>
                 <SelectContent>
                   {availableYears.map(year => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                    <SelectItem key={year} value={year.toString()}>{getFiscalYearLabel(year, Number(formData.fiscal_year_start_month) || 10)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

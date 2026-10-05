@@ -137,13 +137,13 @@ export default function Commissions() {
   });
 
   const getFilteredTransactions = () => {
-    const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+    const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
     const today = new Date();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth() + 1;
     
-    // Determine the current fiscal year (year in which it ends)
-    const currentFiscalYear = fiscalStartMonth === 1 ? currentYear : (currentMonth >= fiscalStartMonth ? currentYear + 1 : currentYear);
+    // Determine the current fiscal year (starting calendar year).
+    const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
     const { startDate: fiscalYearStart } = getFiscalYearDates(currentFiscalYear, fiscalStartMonth);
     
     return transactions.filter(transaction => {
@@ -179,11 +179,11 @@ export default function Commissions() {
   const commissionYearStart = (() => {
     if (!commissionStartDateStr) {
       // Fallback to fiscal year if no commission_start_date
-      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
       const now = new Date();
       const cm = now.getMonth() + 1;
       const cy = now.getFullYear();
-      const cfy = fiscalStartMonth === 1 ? cy : (cm >= fiscalStartMonth ? cy + 1 : cy);
+      const cfy = cm >= fiscalStartMonth ? cy : cy - 1;
       return getFiscalYearDates(cfy, fiscalStartMonth).startDate;
     }
     const start = new Date(commissionStartDateStr);

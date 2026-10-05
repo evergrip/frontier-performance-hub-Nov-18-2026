@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { BarChart3, Briefcase, Building2, FileText, TrendingUp, Calendar } from 'lucide-react';
 import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
-import { getFiscalYearDates } from '../components/utils/fiscalYear';
+import { getFiscalYearDates, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import SalesReport from '../components/reports/SalesReport';
 import PreConstructionReport from '../components/reports/PreConstructionReport';
 import ConstructionPerformanceReport from '../components/reports/ConstructionPerformanceReport';
@@ -22,7 +22,7 @@ export default function Reports() {
   const [dateRangeType, setDateRangeType] = useState('fiscal');
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [selectedQuarter, setSelectedQuarter] = useState('Q1');
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState(new Date().getFullYear());
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState(() => getCurrentFiscalYear());
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState('all');
@@ -45,6 +45,9 @@ export default function Reports() {
     initialData: [],
   });
 
+  const fiscalStartMonth = companySettings[0]?.fiscal_year_start_month || 10;
+  useEffect(() => { setSelectedFiscalYear(getCurrentFiscalYear(fiscalStartMonth)); }, [fiscalStartMonth]);
+
   const getDateRange = () => {
     switch (dateRangeType) {
       case 'month': {
@@ -63,24 +66,8 @@ export default function Reports() {
         };
       }
       case 'fiscal': {
-        const settings = companySettings[0];
-        const fiscalStartMonth = settings?.fiscal_year_start_month;
-        
-        if (fiscalStartMonth) {
-          // Use centralized fiscal year calculation
-          const { startDate, endDate } = getFiscalYearDates(selectedFiscalYear, fiscalStartMonth);
-          return {
-            start: startDate,
-            end: endDate
-          };
-        } else {
-          // Fallback to calendar year if no fiscal start month is set
-          const date = new Date(selectedFiscalYear, 0, 1);
-          return {
-            start: startOfYear(date),
-            end: endOfYear(date)
-          };
-        }
+        const { startDate, endDate } = getFiscalYearDates(selectedFiscalYear, fiscalStartMonth);
+        return { start: startDate, end: endDate };
       }
       case 'custom': {
         return {
@@ -166,7 +153,7 @@ export default function Reports() {
                   <SelectContent>
                     {availableYears.map(year => {
                       const settings = companySettings[0];
-                      const fiscalStartMonth = settings?.fiscal_year_start_month || 1;
+                      const fiscalStartMonth = settings?.fiscal_year_start_month || 10;
                       const { label } = getFiscalYearDates(year, fiscalStartMonth);
                       return (
                         <SelectItem key={year} value={year.toString()}>

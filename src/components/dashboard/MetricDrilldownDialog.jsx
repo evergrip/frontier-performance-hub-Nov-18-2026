@@ -7,6 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval } from 'date-fns';
 import DataInspector from '../common/DataInspector';
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
+import PeriodMetricConfig from '@/components/dashboard/PeriodMetricConfig';
 
 export default function MetricDrilldownDialog({ 
   open, 
@@ -56,105 +57,8 @@ export default function MetricDrilldownDialog({
   };
 
   const config = useMemo(() => {
+    if (['constructionRevenue', 'totalRevenue', 'grossProfit', 'margins'].includes(metricKey)) return PeriodMetricConfig({ metricKey, projects, sales, dateRange, getSaleEffectiveDate, getClientName });
     switch (metricKey) {
-      case 'constructionRevenue': {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth() + 1;
-
-        const closedConstruction = projects
-          .filter(p => p.project_type === 'construction' && p.status === 'closed')
-          .filter(p => {
-            if (!dateRange.start || !dateRange.end) return true;
-            const d = getProjectEffectiveDate(p);
-            return d >= dateRange.start && d <= dateRange.end;
-          })
-          .sort((a, b) => new Date(b.actual_completion_date || b.created_date) - new Date(a.actual_completion_date || a.created_date));
-
-        // Active projects with recognized revenue from past months within the date range
-        const activeWithRevenue = projects
-          .filter(p => 
-            p.project_type === 'construction' && 
-            ['active_construction', 'substantial_completion_closeout'].includes(p.status) &&
-            p.monthly_revenue_allocations?.length > 0
-          )
-          .map(p => {
-            const revenueBase = p.contract_value || 0;
-            const pastAllocations = (p.monthly_revenue_allocations || []).filter(a => {
-              let aYear = a.year != null ? Number(a.year) : null;
-              let aMonth = a.month != null ? Number(a.month) : null;
-              if (!aYear && a.period) {
-                const parts = a.period.split('-');
-                aYear = parseInt(parts[0]);
-                aMonth = parseInt(parts[1]);
-              }
-              if (!aYear || !aMonth) return false;
-              const isPast = (aYear < currentYear) || (aYear === currentYear && aMonth < currentMonth);
-              if (!isPast) return false;
-              if (dateRange.start && dateRange.end) {
-                const allocDate = new Date(aYear, aMonth - 1, 1);
-                if (allocDate < dateRange.start || allocDate > dateRange.end) return false;
-              }
-              return true;
-            });
-            const pastPercent = pastAllocations.reduce((s, a) => s + (a.percentage || 0), 0);
-            const recognizedRevenue = revenueBase * pastPercent / 100;
-            return { ...p, _recognizedRevenue: recognizedRevenue, _recognizedPercent: pastPercent };
-          })
-          .filter(p => p._recognizedRevenue > 0);
-
-        const closedTotal = closedConstruction.reduce((s, p) => s + (p.contract_value || 0), 0);
-        const activeTotal = activeWithRevenue.reduce((s, p) => s + p._recognizedRevenue, 0);
-
-        const monthlyData = dateRange.start && dateRange.end ? eachMonthOfInterval({ start: dateRange.start, end: dateRange.end }).map(month => {
-          const mStart = startOfMonth(month);
-          const mEnd = endOfMonth(month);
-          const monthRevenue = closedConstruction
-            .filter(p => { const d = getProjectEffectiveDate(p); return d >= mStart && d <= mEnd; })
-            .reduce((sum, p) => sum + (p.contract_value || 0), 0);
-          return { month: format(month, 'MMM yy'), revenue: monthRevenue / 1000 };
-        }) : [];
-
-        const allItems = [
-          ...closedConstruction.map(p => ({ ...p, _source: 'closed', _displayRevenue: p.contract_value || 0 })),
-          ...activeWithRevenue.map(p => ({ ...p, _source: 'active', _displayRevenue: p._recognizedRevenue })),
-        ];
-
-        return {
-          title: 'Construction Revenue Breakdown',
-          formula: 'Sum of contract_value for closed construction projects in the date range, plus recognized revenue from active projects based on past monthly_revenue_allocations percentages applied to contract_value.',
-          items: allItems,
-          columns: ['Project', 'Client', 'Status', 'Contract Value', 'Recognized Revenue', 'Margin', 'Closed Date'],
-          renderRow: (p) => (
-            <TableRow key={p.id}>
-              <TableCell className="font-medium">{p.title}</TableCell>
-              <TableCell>{getClientName(p.client_id)}</TableCell>
-              <TableCell>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${p._source === 'closed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                  {p._source === 'closed' ? 'Closed' : (p.status || '').replace(/_/g, ' ')}
-                </span>
-              </TableCell>
-              <TableCell>${((p.contract_value || 0) / 1000).toFixed(0)}K</TableCell>
-              <TableCell className="font-semibold">
-                ${((p._displayRevenue || 0) / 1000).toFixed(0)}K
-                {p._source === 'active' && p._recognizedPercent != null && (
-                  <span className="text-xs text-slate-500 ml-1">({p._recognizedPercent.toFixed(0)}%)</span>
-                )}
-              </TableCell>
-              <TableCell>{(p.actual_margin || 0).toFixed(1)}%</TableCell>
-              <TableCell>{p.actual_completion_date ? format(new Date(p.actual_completion_date), 'MMM d, yyyy') : '-'}</TableCell>
-            </TableRow>
-          ),
-          total: closedTotal + activeTotal,
-          _closedTotal: closedTotal,
-          _activeTotal: activeTotal,
-          _activeCount: activeWithRevenue.length,
-          _closedCount: closedConstruction.length,
-          monthlyData,
-          chartLabel: 'Revenue ($K)'
-        };
-      }
-
       case 'preconRevenue': {
         const closedPrecon = sales
           .filter(s => s.sale_type === 'preconstruction' && s.status === 'closed_won')
@@ -190,50 +94,6 @@ export default function MetricDrilldownDialog({
           total: closedPrecon.reduce((s, sale) => s + (sale.contract_value || 0), 0),
           monthlyData,
           chartLabel: 'Revenue ($K)'
-        };
-      }
-
-      case 'totalRevenue': {
-        const closedPrecon = sales.filter(s => s.sale_type === 'preconstruction' && s.status === 'closed_won')
-          .filter(s => { if (!dateRange.start || !dateRange.end) return true; const d = getSaleEffectiveDate(s); return d >= dateRange.start && d <= dateRange.end; });
-        const closedConstruction = projects.filter(p => p.project_type === 'construction' && p.status === 'closed')
-          .filter(p => { if (!dateRange.start || !dateRange.end) return true; const d = getProjectEffectiveDate(p); return d >= dateRange.start && d <= dateRange.end; });
-
-        const monthlyData = dateRange.start && dateRange.end ? eachMonthOfInterval({ start: dateRange.start, end: dateRange.end }).map(month => {
-          const mStart = startOfMonth(month);
-          const mEnd = endOfMonth(month);
-          const precon = closedPrecon.filter(s => { const d = getSaleEffectiveDate(s); return d >= mStart && d <= mEnd; }).reduce((sum, s) => sum + (s.contract_value || 0), 0);
-          const constr = closedConstruction.filter(p => { const d = getProjectEffectiveDate(p); return d >= mStart && d <= mEnd; }).reduce((sum, p) => sum + (p.contract_value || 0), 0);
-          return { month: format(month, 'MMM yy'), precon: precon / 1000, construction: constr / 1000 };
-        }) : [];
-
-        const allItems = [
-          ...closedPrecon.map(s => ({ ...s, _type: 'precon', _revenue: s.contract_value || 0, _date: getSaleEffectiveDate(s) })),
-          ...closedConstruction.map(p => ({ ...p, _type: 'construction', _revenue: p.contract_value || 0, _date: getProjectEffectiveDate(p) }))
-        ].sort((a, b) => b._date - a._date);
-
-        return {
-          title: 'Total Revenue Breakdown',
-          formula: 'Pre-Construction Revenue (closed_won precon sale contract values) + Construction Revenue (closed project contract values + active project recognized revenue from monthly allocations). Does NOT include active precon sales.',
-          items: allItems,
-          columns: ['Name', 'Type', 'Client', 'Revenue', 'Date'],
-          renderRow: (item) => (
-            <TableRow key={item.id}>
-              <TableCell className="font-medium">{item.title}</TableCell>
-              <TableCell>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${item._type === 'precon' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                  {item._type === 'precon' ? 'Pre-Con' : 'Construction'}
-                </span>
-              </TableCell>
-              <TableCell>{getClientName(item.client_id)}</TableCell>
-              <TableCell className="font-semibold">${(item._revenue / 1000).toFixed(0)}K</TableCell>
-              <TableCell>{format(item._date, 'MMM d, yyyy')}</TableCell>
-            </TableRow>
-          ),
-          total: allItems.reduce((s, i) => s + i._revenue, 0),
-          monthlyData,
-          chartLabel: 'Revenue ($K)',
-          stackedChart: true
         };
       }
 
@@ -291,59 +151,6 @@ export default function MetricDrilldownDialog({
               <TableCell><span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">{(l.status || '').replace(/_/g, ' ')}</span></TableCell>
               <TableCell className="capitalize">{(l.source || '').replace(/_/g, ' ')}</TableCell>
               <TableCell>${((l.estimated_precon_value || 0) / 1000).toFixed(0)}K</TableCell>
-            </TableRow>
-          ),
-          total: null
-        };
-      }
-
-      case 'grossProfit': {
-        const closedP = projects.filter(p => p.status === 'closed')
-          .filter(p => { if (!dateRange.start || !dateRange.end) return true; const d = getProjectEffectiveDate(p); return d >= dateRange.start && d <= dateRange.end; })
-          .sort((a, b) => new Date(b.actual_completion_date || b.created_date) - new Date(a.actual_completion_date || a.created_date));
-
-        return {
-          title: 'Gross Profit by Project',
-          formula: 'For each closed project in date range: contract_value × (actual_margin / 100). Summed for total gross profit. Only uses projects with status "closed".',
-          items: closedP,
-          columns: ['Project', 'Client', 'Contract Value', 'Margin %', 'Gross Profit'],
-          renderRow: (p) => {
-            const profit = (p.contract_value || 0) * ((p.actual_margin || 0) / 100);
-            return (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.title}</TableCell>
-                <TableCell>{getClientName(p.client_id)}</TableCell>
-                <TableCell>${((p.contract_value || 0) / 1000).toFixed(0)}K</TableCell>
-                <TableCell className={p.actual_margin >= 20 ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium'}>{(p.actual_margin || 0).toFixed(1)}%</TableCell>
-                <TableCell className="font-semibold">${(profit / 1000).toFixed(0)}K</TableCell>
-              </TableRow>
-            );
-          },
-          total: closedP.reduce((s, p) => s + (p.contract_value || 0) * ((p.actual_margin || 0) / 100), 0)
-        };
-      }
-
-      case 'margins': {
-        const closedP = projects.filter(p => p.status === 'closed')
-          .filter(p => { if (!dateRange.start || !dateRange.end) return true; const d = getProjectEffectiveDate(p); return d >= dateRange.start && d <= dateRange.end; })
-          .sort((a, b) => (b.actual_margin || 0) - (a.actual_margin || 0));
-
-        const totalRev = closedP.reduce((s, p) => s + (p.contract_value || 0), 0);
-        const totalProfit = closedP.reduce((s, p) => s + (p.contract_value || 0) * ((p.actual_margin || 0) / 100), 0);
-        const weightedMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
-
-        return {
-          title: 'Gross Margin % by Project',
-          formula: `Weighted average: Sum(contract_value × actual_margin%) / Sum(contract_value) for all closed projects in date range. Total revenue: $${(totalRev/1000).toFixed(0)}K, Total profit: $${(totalProfit/1000).toFixed(0)}K → ${weightedMargin.toFixed(1)}%`,
-          items: closedP,
-          columns: ['Project', 'Client', 'Contract Value', 'Actual Costs', 'Margin %'],
-          renderRow: (p) => (
-            <TableRow key={p.id}>
-              <TableCell className="font-medium">{p.title}</TableCell>
-              <TableCell>{getClientName(p.client_id)}</TableCell>
-              <TableCell>${((p.contract_value || 0) / 1000).toFixed(0)}K</TableCell>
-              <TableCell>${((p.actual_costs || 0) / 1000).toFixed(0)}K</TableCell>
-              <TableCell className={`font-semibold ${(p.actual_margin || 0) >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>{(p.actual_margin || 0).toFixed(1)}%</TableCell>
             </TableRow>
           ),
           total: null

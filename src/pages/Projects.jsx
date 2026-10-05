@@ -24,7 +24,8 @@ import EditProjectDetailDialog from '../components/projects/EditProjectDetailDia
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
-import { getFiscalYearLabel } from '../components/utils/fiscalYear';
+import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
+import { allocationDate } from '@/components/utils/projectPeriod';
 import { createPageUrl } from '../utils';
 import { getCloseoutCommissionDecision } from '@/lib/projectFinancials';
 import { getProjectGrossProfit } from '@/lib/profitForecast';
@@ -229,10 +230,10 @@ export default function Projects() {
     const nextStatus = getNextStatus(project.status);
     if (nextStatus === 'mobilization') {
       const now = new Date();
-      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
-      const currentFiscalYear = fiscalStartMonth === 1 ? currentYear : (currentMonth >= fiscalStartMonth ? currentYear + 1 : currentYear);
+      const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
       setSelectedFiscalYear(currentFiscalYear);
       
       // Initialize allocations or use existing
@@ -242,7 +243,7 @@ export default function Projects() {
         const allocations = [];
         for (let i = 0; i < 12; i++) {
           const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-          const yr = fiscalStartMonth === 1 ? currentFiscalYear : (month >= fiscalStartMonth ? currentFiscalYear - 1 : currentFiscalYear);
+          const yr = month >= fiscalStartMonth ? currentFiscalYear : currentFiscalYear + 1;
           allocations.push({ year: yr, month, percentage: 0 });
         }
         setMonthlyAllocations(allocations);
@@ -260,30 +261,17 @@ export default function Projects() {
       variance_explanation: ''
     });
     
-    // Determine current fiscal year based on company settings
-    // FY convention: fiscalYear = the calendar year in which the FY ENDS
-    // e.g. FY 2026 = Oct 2025 – Sep 2026
-    const now = new Date();
-    const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-    
-    // If we're on or after the fiscal start month, the FY ends next calendar year
-    // If we're before the fiscal start month, the FY ends this calendar year
-    const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear + 1 : currentYear;
-    // Special case: if fiscal year starts in January, FY ends same year
-    const adjustedFiscalYear = fiscalStartMonth === 1 ? currentYear : currentFiscalYear;
-    setSelectedFiscalYear(adjustedFiscalYear);
-    
-    // Initialize monthly allocations for the current fiscal year
-    // FY ends in adjustedFiscalYear, so months >= fiscalStartMonth are in (adjustedFiscalYear - 1), months < fiscalStartMonth are in adjustedFiscalYear
-    const allocations = [];
+    // Preserve existing monthly allocations, including all prior fiscal years.
+    const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
+    const currentFiscalYear = getCurrentFiscalYear(fiscalStartMonth);
+    setSelectedFiscalYear(currentFiscalYear);
+    const allocations = [...(project.monthly_revenue_allocations || [])].map(a => {
+      const date = allocationDate(a);
+      return date ? { ...a, year: date.getFullYear(), month: date.getMonth() + 1 } : a;
+    });
     for (let i = 0; i < 12; i++) {
-      const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-      const year = month >= fiscalStartMonth ? adjustedFiscalYear - 1 : adjustedFiscalYear;
-      // Special case: if fiscal starts in Jan, all months are in the same year
-      const adjustedYear = fiscalStartMonth === 1 ? adjustedFiscalYear : year;
-      allocations.push({ year: adjustedYear, month, percentage: 0 });
+      const date = new Date(currentFiscalYear, fiscalStartMonth - 1 + i, 1);
+      if (!allocations.some(a => a.year === date.getFullYear() && a.month === date.getMonth() + 1)) allocations.push({ year: date.getFullYear(), month: date.getMonth() + 1, percentage: 0 });
     }
     setMonthlyAllocations(allocations);
     setCloseoutDialogOpen(true);
@@ -306,10 +294,10 @@ export default function Projects() {
     // Load allocations for all active statuses including awaiting_to_be_scheduled
     if (['awaiting_to_be_scheduled', 'mobilization', 'active_construction', 'substantial_completion_closeout'].includes(project.status)) {
       const now = new Date();
-      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
-      const currentFiscalYear = fiscalStartMonth === 1 ? currentYear : (currentMonth >= fiscalStartMonth ? currentYear + 1 : currentYear);
+      const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
       setSelectedFiscalYear(currentFiscalYear);
       
       // Build a clean set of month slots for the current fiscal year
@@ -317,13 +305,13 @@ export default function Projects() {
         const slots = [];
         for (let i = 0; i < 12; i++) {
           const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-          const yr = fiscalStartMonth === 1 ? fy : (month >= fiscalStartMonth ? fy - 1 : fy);
+          const yr = month >= fiscalStartMonth ? fy : fy + 1;
           slots.push({ year: yr, month, percentage: 0 });
         }
         return slots;
       };
       
-      const existingAllocs = (project.monthly_revenue_allocations || []).filter(a => a.year && a.month);
+      const existingAllocs = (project.monthly_revenue_allocations || []).map(a => { const date = allocationDate(a); return date ? { ...a, year: date.getFullYear(), month: date.getMonth() + 1 } : a; });
       const hasProperFields = existingAllocs.length > 0;
       
       if (hasProperFields) {
@@ -331,7 +319,8 @@ export default function Projects() {
         // Determine which fiscal years are covered
         const fySet = new Set();
         existingAllocs.forEach(a => {
-          const afy = fiscalStartMonth === 1 ? a.year : (a.month >= fiscalStartMonth ? a.year + 1 : a.year);
+          if (!allocationDate(a)) return;
+          const afy = a.month >= fiscalStartMonth ? a.year : a.year - 1;
           fySet.add(afy);
         });
         fySet.add(currentFiscalYear);
@@ -349,7 +338,8 @@ export default function Projects() {
         // Apply existing percentages
         existingAllocs.forEach(a => {
           const slot = allSlots.find(s => s.year === a.year && s.month === a.month);
-          if (slot) slot.percentage = a.percentage || 0;
+          if (slot) slot.percentage += Number(a.percentage) || 0;
+          else allSlots.push(a);
         });
         
         setMonthlyAllocations(allSlots);
@@ -1097,18 +1087,18 @@ export default function Projects() {
                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
                          const newFY = selectedFiscalYear - 1;
                          setSelectedFiscalYear(newFY);
-                         const fsm = companySettings?.fiscal_year_start_month || 1;
+                         const fsm = companySettings?.fiscal_year_start_month || 10;
                          const newMonths = [];
-                         for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = fsm === 1 ? newFY : (month >= fsm ? newFY - 1 : newFY); newMonths.push({ year: yr, month, percentage: 0 }); }
+                         for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
                          setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
                        }}><span className="text-xs">◀</span></Button>
                        <span className="text-sm font-semibold text-center flex-1">{getFiscalYearLabel(selectedFiscalYear, companySettings?.fiscal_year_start_month || 10)}</span>
                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
                          const newFY = selectedFiscalYear + 1;
                          setSelectedFiscalYear(newFY);
-                         const fsm = companySettings?.fiscal_year_start_month || 1;
+                         const fsm = companySettings?.fiscal_year_start_month || 10;
                          const newMonths = [];
-                         for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = fsm === 1 ? newFY : (month >= fsm ? newFY - 1 : newFY); newMonths.push({ year: yr, month, percentage: 0 }); }
+                         for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
                          setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
                        }}><span className="text-xs">▶</span></Button>
                      </div>
@@ -1117,10 +1107,10 @@ export default function Projects() {
                         <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto border rounded-lg p-3 bg-slate-50">
                         {monthlyAllocations
                         .filter(alloc => {
-                         const fsm = companySettings?.fiscal_year_start_month || 1;
+                         const fsm = companySettings?.fiscal_year_start_month || 10;
                          if (fsm === 1) return alloc.year === selectedFiscalYear;
-                         return (alloc.month >= fsm && alloc.year === selectedFiscalYear - 1) ||
-                                (alloc.month < fsm && alloc.year === selectedFiscalYear);
+                         return (alloc.month >= fsm && alloc.year === selectedFiscalYear) ||
+                                (alloc.month < fsm && alloc.year === selectedFiscalYear + 1);
                         })
                         .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year)
                         .map((alloc) => {
@@ -1331,18 +1321,18 @@ export default function Projects() {
                         <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
                           const newFY = selectedFiscalYear - 1;
                           setSelectedFiscalYear(newFY);
-                          const fsm = companySettings?.fiscal_year_start_month || 1;
+                          const fsm = companySettings?.fiscal_year_start_month || 10;
                           const newMonths = [];
-                          for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = fsm === 1 ? newFY : (month >= fsm ? newFY - 1 : newFY); newMonths.push({ year: yr, month, percentage: 0 }); }
+                          for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
                           setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
                         }}><span className="text-xs">◀</span></Button>
                         <span className="text-sm font-semibold text-center flex-1">{getFiscalYearLabel(selectedFiscalYear, companySettings?.fiscal_year_start_month || 10)}</span>
                         <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
                           const newFY = selectedFiscalYear + 1;
                           setSelectedFiscalYear(newFY);
-                          const fsm = companySettings?.fiscal_year_start_month || 1;
+                          const fsm = companySettings?.fiscal_year_start_month || 10;
                           const newMonths = [];
-                          for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = fsm === 1 ? newFY : (month >= fsm ? newFY - 1 : newFY); newMonths.push({ year: yr, month, percentage: 0 }); }
+                          for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
                           setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
                         }}><span className="text-xs">▶</span></Button>
                       </div>
@@ -1351,10 +1341,10 @@ export default function Projects() {
                     <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto border rounded-lg p-3 bg-slate-50">
                       {monthlyAllocations
                         .filter(alloc => {
-                          const fsm = companySettings?.fiscal_year_start_month || 1;
+                          const fsm = companySettings?.fiscal_year_start_month || 10;
                           if (fsm === 1) return alloc.year === selectedFiscalYear;
-                          return (alloc.month >= fsm && alloc.year === selectedFiscalYear - 1) ||
-                                 (alloc.month < fsm && alloc.year === selectedFiscalYear);
+                          return (alloc.month >= fsm && alloc.year === selectedFiscalYear) ||
+                                 (alloc.month < fsm && alloc.year === selectedFiscalYear + 1);
                         })
                         .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year)
                         .map((alloc) => {
@@ -1523,18 +1513,18 @@ export default function Projects() {
                 <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
                   const newFY = selectedFiscalYear - 1;
                   setSelectedFiscalYear(newFY);
-                  const fsm = companySettings?.fiscal_year_start_month || 1;
+                  const fsm = companySettings?.fiscal_year_start_month || 10;
                   const newMonths = [];
-                  for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = fsm === 1 ? newFY : (month >= fsm ? newFY - 1 : newFY); newMonths.push({ year: yr, month, percentage: 0 }); }
+                  for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
                   setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
                 }}><span className="text-xs">◀</span></Button>
                 <span className="text-sm font-semibold text-center flex-1">{getFiscalYearLabel(selectedFiscalYear, companySettings?.fiscal_year_start_month || 10)}</span>
                 <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
                   const newFY = selectedFiscalYear + 1;
                   setSelectedFiscalYear(newFY);
-                  const fsm = companySettings?.fiscal_year_start_month || 1;
+                  const fsm = companySettings?.fiscal_year_start_month || 10;
                   const newMonths = [];
-                  for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = fsm === 1 ? newFY : (month >= fsm ? newFY - 1 : newFY); newMonths.push({ year: yr, month, percentage: 0 }); }
+                  for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
                   setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
                 }}><span className="text-xs">▶</span></Button>
               </div>
@@ -1549,10 +1539,10 @@ export default function Projects() {
               <div className="grid grid-cols-3 gap-2 max-h-[200px] overflow-y-auto border rounded-lg p-3 bg-slate-50">
                 {monthlyAllocations
                   .filter(alloc => {
-                    const fsm = companySettings?.fiscal_year_start_month || 1;
+                    const fsm = companySettings?.fiscal_year_start_month || 10;
                     if (fsm === 1) return alloc.year === selectedFiscalYear;
-                    return (alloc.month >= fsm && alloc.year === selectedFiscalYear - 1) ||
-                           (alloc.month < fsm && alloc.year === selectedFiscalYear);
+                    return (alloc.month >= fsm && alloc.year === selectedFiscalYear) ||
+                           (alloc.month < fsm && alloc.year === selectedFiscalYear + 1);
                   })
                   .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year)
                   .map((alloc) => {

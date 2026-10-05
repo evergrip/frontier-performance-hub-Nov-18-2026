@@ -11,7 +11,7 @@ import SubAllocationDialog from './SubAllocationDialog';
 
 export default function PreconAllocationDialog({ open, onOpenChange, sale, companySettings }) {
   const queryClient = useQueryClient();
-  const fiscalStartMonth = companySettings?.fiscal_year_start_month || 1;
+  const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
 
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(null);
   const [monthlyAllocations, setMonthlyAllocations] = useState([]);
@@ -23,14 +23,14 @@ export default function PreconAllocationDialog({ open, onOpenChange, sale, compa
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    const currentFiscalYear = fiscalStartMonth === 1 ? currentYear : (currentMonth >= fiscalStartMonth ? currentYear + 1 : currentYear);
+    const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
     setSelectedFiscalYear(currentFiscalYear);
 
     const buildFYSlots = (fy) => {
       const slots = [];
       for (let i = 0; i < 12; i++) {
         const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-        const yr = fiscalStartMonth === 1 ? fy : (month >= fiscalStartMonth ? fy - 1 : fy);
+        const yr = month >= fiscalStartMonth ? fy : fy + 1;
         slots.push({ year: yr, month, percentage: 0 });
       }
       return slots;
@@ -41,7 +41,7 @@ export default function PreconAllocationDialog({ open, onOpenChange, sale, compa
     if (existingAllocs.length > 0) {
       const fySet = new Set();
       existingAllocs.forEach(a => {
-        const afy = fiscalStartMonth === 1 ? a.year : (a.month >= fiscalStartMonth ? a.year + 1 : a.year);
+        const afy = a.month >= fiscalStartMonth ? a.year : a.year - 1;
         fySet.add(afy);
       });
       fySet.add(currentFiscalYear);
@@ -92,7 +92,7 @@ export default function PreconAllocationDialog({ open, onOpenChange, sale, compa
     const newMonths = [];
     for (let i = 0; i < 12; i++) {
       const month = ((fiscalStartMonth - 1 + i) % 12) + 1;
-      const yr = fiscalStartMonth === 1 ? newFY : (month >= fiscalStartMonth ? newFY - 1 : newFY);
+      const yr = month >= fiscalStartMonth ? newFY : newFY + 1;
       newMonths.push({ year: yr, month, percentage: 0 });
     }
     setMonthlyAllocations(prev => {
@@ -109,8 +109,8 @@ export default function PreconAllocationDialog({ open, onOpenChange, sale, compa
   const visibleAllocations = monthlyAllocations
     .filter(alloc => {
       if (fiscalStartMonth === 1) return alloc.year === selectedFiscalYear;
-      return (alloc.month >= fiscalStartMonth && alloc.year === selectedFiscalYear - 1) ||
-             (alloc.month < fiscalStartMonth && alloc.year === selectedFiscalYear);
+      return (alloc.month >= fiscalStartMonth && alloc.year === selectedFiscalYear) ||
+                    (alloc.month < fiscalStartMonth && alloc.year === selectedFiscalYear + 1);
     })
     .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year);
 
