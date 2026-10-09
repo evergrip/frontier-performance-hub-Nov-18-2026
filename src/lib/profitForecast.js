@@ -9,7 +9,7 @@ export function getProjectGrossProfit(project, sale) {
   const hasRecordedMargin = recordedMargin !== null && recordedMargin !== undefined && recordedMargin !== '';
   const margin = hasRecordedMargin ? number(recordedMargin) : number(sale?.estimated_margin);
   const financials = calculateProjectFinancials(project);
-  const useMarginForecast = hasRecordedMargin || margin > 0;
+  const useMarginForecast = project.status !== 'closed' && (hasRecordedMargin || margin > 0);
   return {
     revenue,
     costs: financials.costs,

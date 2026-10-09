@@ -1,10 +1,11 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { availableAfterPayouts } from '../../shared/verificationMath.ts';
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-Deno.serve(async (req) => {
+export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -13,6 +14,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Admin access required' }, { status: 403 });
     }
 
+    const { dry_run = false } = await req.json();
     // Get all transactions and users (for anniversary-based YTD filtering)
     const allTransactions = await base44.asServiceRole.entities.CommissionTransaction.list();
     const allUsers = await base44.asServiceRole.entities.User.list();
@@ -108,10 +110,10 @@ Deno.serve(async (req) => {
           // Phase releases move money FROM banked TO available, so subtract from bank balance
           const adjustedBankBalance = agg.current_bank_balance;
           
-          await base44.asServiceRole.entities.CommissionBank.update(bank.id, {
+          if (!dry_run) await base44.asServiceRole.entities.CommissionBank.update(bank.id, {
             total_earned: agg.total_earned,
             current_bank_balance: adjustedBankBalance,
-            available_balance: agg.available_balance,
+            available_balance: availableAfterPayouts(agg.available_balance, bank.total_paid_out),
             ytd_sales_volume: agg.ytd_sales_volume,
             ytd_construction_volume: agg.ytd_construction_volume,
             ytd_preconstruction_volume: agg.ytd_preconstruction_volume,
@@ -120,12 +122,14 @@ Deno.serve(async (req) => {
             user_id: bank.user_id,
             total_earned: agg.total_earned,
             bank_balance: adjustedBankBalance,
-            available: agg.available_balance,
-            math_check: `${agg.total_earned.toFixed(2)} = ${adjustedBankBalance.toFixed(2)} (banked) + ${agg.available_balance.toFixed(2)} (available) + ${(bank.total_paid_out || 0).toFixed(2)} (paid) = ${(adjustedBankBalance + agg.available_balance + (bank.total_paid_out || 0)).toFixed(2)}`
+            available: availableAfterPayouts(agg.available_balance, bank.total_paid_out),
+            math_check: `${agg.total_earned.toFixed(2)} = ${adjustedBankBalance.toFixed(2)} (banked) + ${agg.available_balance.toFixed(2)} (available) + ${(bank.total_paid_out || 0).toFixed(2)} (paid) = ${(adjustedBankBalance + availableAfterPayouts(agg.available_balance, bank.total_paid_out) + (bank.total_paid_out || 0)).toFixed(2)}`
           });
+        } else if ((bank.total_paid_out || 0) > 0) {
+          errors.push({ user_id: bank.user_id, error: 'Paid bank has no earning ledger; left unchanged for manual review.' });
         } else {
-          // No transactions for this user, zero out
-          await base44.asServiceRole.entities.CommissionBank.update(bank.id, {
+          // No transactions and no paid funds: zero out
+          if (!dry_run) await base44.asServiceRole.entities.CommissionBank.update(bank.id, {
             total_earned: 0,
             current_bank_balance: 0,
             available_balance: 0,
@@ -143,7 +147,8 @@ Deno.serve(async (req) => {
 
     return Response.json({
       success: true,
-      message: 'Commission banks rebuilt from transaction records',
+      message: dry_run ? 'Read-only bank reconciliation preview; no banks changed' : 'Commission banks rebuilt from transaction records',
+      dry_run,
       banks_updated: results.length,
       transactions_processed: sortedTransactions.length,
       results,
@@ -154,4 +159,4 @@ Deno.serve(async (req) => {
     console.error('Rebuild error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
-});
+}

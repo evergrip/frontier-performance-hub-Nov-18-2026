@@ -30,7 +30,7 @@ export function allocationPercentage(record, range, pastOnly = false, now = new 
 export function projectPeriodFinancials(project, range, scheduled = false, startMonth = 10) {
   const f = calculateProjectFinancials(project);
   const margin = project.actual_margin;
-  const grossProfit = margin !== null && margin !== undefined && margin !== '' ? f.revenue * Number(margin) / 100 : f.grossProfit;
+  const grossProfit = project.status !== 'closed' && margin !== null && margin !== undefined && margin !== '' ? f.revenue * Number(margin) / 100 : f.grossProfit;
   let percentage = allocationPercentage(project, range, !scheduled && project.status !== 'closed');
   if (!project.monthly_revenue_allocations?.length && project.status === 'closed') {
     const end = projectClosedDate(project), start = projectStartDate(project);

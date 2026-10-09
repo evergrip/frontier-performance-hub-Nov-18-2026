@@ -1,6 +1,7 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { phaseRelease, selectCommissionRule } from '../../shared/verificationMath.ts';
 
-Deno.serve(async (req) => {
+export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -44,10 +45,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Salesperson has no commission rules assigned' }, { status: 400 });
     }
 
-    // Get the commission rule
-    commissionRuleId = salesperson.commission_rule_ids[0];
-    const rules = await base44.asServiceRole.entities.CommissionRule.filter({ id: commissionRuleId });
-    const commissionRule = rules[0];
+    // Match the original sale type rather than whichever rule happens to come first.
+    const rules = await base44.asServiceRole.entities.CommissionRule.filter({ id: { $in: salesperson.commission_rule_ids } });
+    const commissionRule = selectCommissionRule(rules, sale.sale_type);
 
     if (!commissionRule) {
       return Response.json({ error: 'Commission rule not found' }, { status: 404 });
@@ -86,7 +86,11 @@ Deno.serve(async (req) => {
 
     const originalTransaction = transactions[0];
     const totalCommission = originalTransaction.amount || 0;
-    const amountToMakeAvailable = (totalCommission * phasePayout.available_percentage) / 100;
+    const released = await base44.asServiceRole.entities.CommissionTransaction.aggregate({ query: { sale_id: sale.id, user_id: assignedTo, transaction_type: 'phase_commission' }, sum: 'amount_made_available' });
+    const alreadyReleased = released.rows[0]?.sum_amount_made_available || 0;
+    const amountToMakeAvailable = phaseRelease(totalCommission, originalTransaction.immediate_payout_amount ?? originalTransaction.amount_made_available ?? 0, alreadyReleased, phasePayout.available_percentage);
+    if (amountToMakeAvailable <= 0) return Response.json({ success: true, message: 'This phase availability is already satisfied; no duplicate release.' });
+    if (amountToMakeAvailable > (commissionBank.current_bank_balance || 0) + 0.02) return Response.json({ error: 'Banked funds are insufficient. Manual commission review is required.' }, { status: 409 });
 
     // Create phase commission transaction
     const phaseTransaction = await base44.asServiceRole.entities.CommissionTransaction.create({
@@ -123,4 +127,4 @@ Deno.serve(async (req) => {
     console.error('Phase commission update error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
-});
+}

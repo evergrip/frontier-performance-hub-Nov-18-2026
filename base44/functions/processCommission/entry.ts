@@ -1,6 +1,7 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { selectCommissionRule } from '../../shared/verificationMath.ts';
 
-Deno.serve(async (req) => {
+export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -36,16 +37,8 @@ Deno.serve(async (req) => {
       id: { $in: salesperson.commission_rule_ids }
     });
 
-    // Find exact match first, then 'both', then fallback
-    let commissionRule = allRules.find(rule => rule.sale_type === sale_type);
-
-    if (!commissionRule) {
-      commissionRule = allRules.find(rule => rule.sale_type === 'both');
-    }
-
-    if (!commissionRule) {
-      commissionRule = allRules[0];
-    }
+    // An unrelated sale-type rule must never silently supply a commission rate.
+    const commissionRule = selectCommissionRule(allRules, sale_type);
 
     if (!commissionRule || !commissionRule.tiers?.length) {
       return Response.json({ error: `No commission rule found for ${sale_type} sales` }, { status: 404 });
@@ -168,7 +161,7 @@ Deno.serve(async (req) => {
         const matchingPhase = phaseAvailability.find(p => p.phase === convertedProject.status);
         if (matchingPhase) {
           availablePercentage = matchingPhase.available_percentage || 0;
-          bankedPercentage = matchingPhase.banked_percentage || 100;
+          bankedPercentage = matchingPhase.banked_percentage ?? 100;
           phaseApplied = convertedProject.status;
         } else {
           availablePercentage = 0;
@@ -180,7 +173,7 @@ Deno.serve(async (req) => {
         const matchingPhase = phaseAvailability.find(p => p.phase === sale.status);
         if (matchingPhase) {
           availablePercentage = matchingPhase.available_percentage || 0;
-          bankedPercentage = matchingPhase.banked_percentage || 100;
+          bankedPercentage = matchingPhase.banked_percentage ?? 100;
           phaseApplied = sale.status;
         } else {
           availablePercentage = 0;
@@ -192,7 +185,7 @@ Deno.serve(async (req) => {
       const matchingPhase = phaseAvailability.find(p => p.phase === sale.status);
       if (matchingPhase) {
         availablePercentage = matchingPhase.available_percentage || 0;
-        bankedPercentage = matchingPhase.banked_percentage || 100;
+        bankedPercentage = matchingPhase.banked_percentage ?? 100;
         phaseApplied = sale.status;
       } else {
         availablePercentage = 0;
@@ -239,11 +232,11 @@ Deno.serve(async (req) => {
       if (sale_type === 'preconstruction') {
         const phaseAvail = commissionRule.precon_phase_availability || [];
         const mp = phaseAvail.find(p => p.phase === sale.status);
-        if (mp) { closeoutAvailPct = mp.available_percentage || 0; closeoutBankedPct = mp.banked_percentage || 100; }
+        if (mp) { closeoutAvailPct = mp.available_percentage || 0; closeoutBankedPct = mp.banked_percentage ?? 100; }
       } else {
         const phaseAvail = commissionRule.construction_phase_availability || [];
         const mp = phaseAvail.find(p => p.phase === sale.status);
-        if (mp) { closeoutAvailPct = mp.available_percentage || 0; closeoutBankedPct = mp.banked_percentage || 100; }
+        if (mp) { closeoutAvailPct = mp.available_percentage || 0; closeoutBankedPct = mp.banked_percentage ?? 100; }
       }
       const newBankedAmount = (newCommissionAmount * closeoutBankedPct) / 100;
       const newAvailableAmount = (newCommissionAmount * closeoutAvailPct) / 100;
@@ -414,7 +407,7 @@ Deno.serve(async (req) => {
           const matchingPhase = phaseAvailability.find(p => p.phase === sale.status);
           if (matchingPhase) {
             newAvailablePercentage = matchingPhase.available_percentage || 0;
-            newBankedPercentage = matchingPhase.banked_percentage || 100;
+            newBankedPercentage = matchingPhase.banked_percentage ?? 100;
           } else {
             newAvailablePercentage = 0;
             newBankedPercentage = 100;
@@ -424,7 +417,7 @@ Deno.serve(async (req) => {
           const matchingPhase = phaseAvailability.find(p => p.phase === sale.status);
           if (matchingPhase) {
             newAvailablePercentage = matchingPhase.available_percentage || 0;
-            newBankedPercentage = matchingPhase.banked_percentage || 100;
+            newBankedPercentage = matchingPhase.banked_percentage ?? 100;
           } else {
             newAvailablePercentage = 0;
             newBankedPercentage = 100;
@@ -570,4 +563,4 @@ Deno.serve(async (req) => {
     console.error('Commission processing error:', error);
     return Response.json({ error: error.message }, { status: 500 });
   }
-});
+}
