@@ -1,0 +1,120 @@
+{
+  "name": "VerificationFinding",
+  "type": "object",
+  "properties": {
+    "fingerprint": {
+      "type": "string"
+    },
+    "area": {
+      "type": "string"
+    },
+    "affected_areas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "entity_type": {
+      "type": "string"
+    },
+    "entity_id": {
+      "type": "string"
+    },
+    "record_title": {
+      "type": "string"
+    },
+    "rule": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "invariant",
+        "investigate"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "expected": {
+      "type": "string"
+    },
+    "observed": {
+      "type": "string"
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "detected": {
+      "type": "boolean",
+      "default": true
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "manual_review",
+        "investigate",
+        "resolved"
+      ],
+      "default": "manual_review"
+    },
+    "review_notes": {
+      "type": "string"
+    },
+    "reviewed_by": {
+      "type": "string"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_run_id": {
+      "type": "string"
+    },
+    "last_seen_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "rule_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "fingerprint",
+    "area",
+    "entity_type",
+    "entity_id",
+    "rule",
+    "summary"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

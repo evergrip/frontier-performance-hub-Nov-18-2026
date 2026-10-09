@@ -1,0 +1,69 @@
+{
+  "name": "VerificationRun",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "completed"
+      ],
+      "default": "running"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "step": {
+      "type": "number",
+      "default": 0
+    },
+    "cursor": {
+      "type": "string",
+      "default": ""
+    },
+    "checked": {
+      "type": "number",
+      "default": 0
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "initiated_by": {
+      "type": "string"
+    },
+    "rule_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "started_at"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
