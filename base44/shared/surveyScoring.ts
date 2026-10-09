@@ -24,6 +24,16 @@ export function scoreQuestion(q, answer) {
   }
   return { questionScore, questionMax };
 }
+export function questionVisible(survey, q, responses, knownBase) {
+  if (!evaluateVisibility(q, responses)) return false;
+  if (!q.is_followup) return true;
+  const base = knownBase || {};
+  if (!knownBase) for (const b of survey.questions || []) {
+    if (b.is_followup || !evaluateVisibility(b, responses)) continue;
+    base[b.category_id] = (base[b.category_id] || 0) + scoreQuestion(b, responses[b.id]).questionScore * (b.weight ?? 1);
+  }
+  return (survey.section_followup_rules || []).some(r => (r.followup_question_ids || []).includes(q.id) && (base[r.heading_id] || 0) >= r.threshold_score);
+}
 export function calculateScores(survey, responses) {
   let totalScore = 0, maxPossibleScore = 0;
   const categoryScores = Object.fromEntries((survey.headings || []).map(h => [h.id, { title: h.title, score: 0, max: 0, pct: 0 }]));
@@ -34,8 +44,7 @@ export function calculateScores(survey, responses) {
     base[q.category_id] = (base[q.category_id] || 0) + scored.questionScore * (q.weight ?? 1);
   }
   for (const q of survey.questions || []) {
-    if (!evaluateVisibility(q, responses)) continue;
-    if (q.is_followup && !(survey.section_followup_rules || []).some(r => (r.followup_question_ids || []).includes(q.id) && (base[r.heading_id] || 0) >= r.threshold_score)) continue;
+    if (!questionVisible(survey, q, responses, base)) continue;
     const { questionScore, questionMax } = scoreQuestion(q, responses[q.id]), weight = q.weight ?? 1;
     totalScore += questionScore * weight; maxPossibleScore += questionMax * weight;
     if (categoryScores[q.category_id]) { categoryScores[q.category_id].score += questionScore * weight; categoryScores[q.category_id].max += questionMax * weight; }

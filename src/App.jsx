@@ -19,6 +19,7 @@ const ProcessMapView = lazy(() => import('./pages/ProcessMapView'));
 const SurveyPublicPage = lazy(() => import('./pages/SurveyPublic'));
 const DevelopmentLogPage = lazy(() => import('./pages/DevelopmentLog'));
 const CommissionAuditPage = lazy(() => import('./pages/CommissionAudit'));
+const CoreVerification = lazy(() => import('@/pages/CoreVerification'));
 
 
 
@@ -97,6 +98,7 @@ const AuthenticatedApp = () => {
         <Route path="/ProcessMapView" element={<LayoutWrapper currentPageName="ProcessMapView"><ProcessMapView /></LayoutWrapper>} />
         <Route path="/DevelopmentLog" element={<LayoutWrapper currentPageName="DevelopmentLog"><DevelopmentLogPage /></LayoutWrapper>} />
         <Route path="/CommissionAudit" element={<LayoutWrapper currentPageName="CommissionAudit"><CommissionAuditPage /></LayoutWrapper>} />
+        <Route path="/CoreVerification" element={<LayoutWrapper currentPageName="CoreVerification"><CoreVerification /></LayoutWrapper>} />
 
         <Route path="*" element={<PageNotFound />} />
       </Routes>

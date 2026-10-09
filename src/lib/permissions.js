@@ -78,7 +78,7 @@ export const PERMISSION_SECTIONS = [
     key: 'company_admin',
     label: 'Company Admin',
     description: 'Company settings, Data Quality, Import, Subtrades, KPI Definitions, Users',
-    pages: ['CompanyAdmin', 'DataQuality', 'ImportHistoricalData', 'Subtrades', 'KPIDefinitions', 'CompanySettings'],
+    pages: ['CompanyAdmin', 'DataQuality', 'ImportHistoricalData', 'Subtrades', 'KPIDefinitions', 'CompanySettings', 'CoreVerification'],
   },
 ];
 

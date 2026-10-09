@@ -120,6 +120,7 @@ export default function Layout({ children, currentPageName }) {
   ];
 
   const adminNavigation = [
+    ...(user?.role === 'admin' ? [{ name: 'Core Verification', icon: ClipboardList, page: 'CoreVerification' }] : []),
     ...(hasPermission(user, 'company_admin') ? [
       { name: 'Company Admin', icon: Settings, page: 'CompanyAdmin' },
       { name: 'Data Quality', icon: Flag, page: 'DataQuality' },
