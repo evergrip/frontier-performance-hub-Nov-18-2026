@@ -5,8 +5,9 @@ import { DollarSign, Target, Briefcase, Building2, TrendingUp, Settings2, CheckC
 import StatCard from '../components/common/StatCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, format, eachMonthOfInterval } from 'date-fns';
-import { getFiscalYearDates, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
+import { startOfMonth, endOfMonth, format, eachMonthOfInterval } from 'date-fns';
+import { getFiscalYearDates, getCurrentFiscalYear, getFiscalQuarterDates, getCurrentFiscalQuarter, parseLocalDate, endOfLocalDay } from '@/components/utils/fiscalYear';
+import { buildPipelineForecast } from '@/lib/pipelineForecast';
 import { projectPeriodFinancials, projectClosedDate } from '@/components/utils/projectPeriod';
 import CarryoverAllocationReview from '@/components/projects/CarryoverAllocationReview';
 import MetricDrilldownDialog from '../components/dashboard/MetricDrilldownDialog';
@@ -29,7 +30,7 @@ export default function Dashboard() {
   const [selectedDateRangeType, setSelectedDateRangeType] = useState('fiscal_year');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedQuarter, setSelectedQuarter] = useState(Math.floor(new Date().getMonth() / 3) + 1);
+  const [selectedQuarter, setSelectedQuarter] = useState(() => getCurrentFiscalQuarter());
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [fiscalYear, setFiscalYear] = useState(() => getCurrentFiscalYear());
@@ -157,18 +158,16 @@ export default function Dashboard() {
         end: endOfMonth(new Date(selectedYear, selectedMonth - 1, 1))
       };
     } else if (selectedDateRangeType === 'quarter') {
-      const quarterStartMonth = (selectedQuarter - 1) * 3;
-      return {
-        start: startOfQuarter(new Date(selectedYear, quarterStartMonth, 1)),
-        end: endOfQuarter(new Date(selectedYear, quarterStartMonth, 1))
-      };
+      // Fiscal quarters: Q1 = first three months of the selected fiscal year (Oct–Dec for an October start).
+      const { startDate, endDate } = getFiscalQuarterDates(fiscalYear, selectedQuarter || 1, fiscalYearStartMonth);
+      return { start: startDate, end: endDate };
     } else if (selectedDateRangeType === 'fiscal_year') {
       const { startDate, endDate } = getFiscalYearDates(fiscalYear, fiscalYearStartMonth);
       return { start: startDate, end: endDate };
     } else if (selectedDateRangeType === 'custom') {
       return {
-        start: customStartDate ? new Date(customStartDate) : null,
-        end: customEndDate ? new Date(customEndDate) : null
+        start: parseLocalDate(customStartDate),
+        end: endOfLocalDay(customEndDate)
       };
     }
     return { start: null, end: null };
@@ -303,147 +302,95 @@ export default function Dashboard() {
     };
   }, [filteredSales, filteredProjects, filteredLeads, scopedProjects, scopedSales, scopedLeads, dateRange]);
 
-  const currentFiscalGoal = useMemo(() => fiscalGoals.find(g => g.fiscal_year === fiscalYear), [fiscalGoals, fiscalYear]);
+  const currentFiscalGoal = useMemo(() => fiscalGoals.find(g => Number(g.fiscal_year) === Number(fiscalYear)), [fiscalGoals, fiscalYear]);
+  // Full fiscal-year range (Oct 1 – Sep 30 by default) used by the annual forecast, goal progress and capacity
+  // forecast regardless of the month/quarter/custom range selected above.
+  const fyRange = useMemo(() => {
+    const { startDate, endDate } = getFiscalYearDates(fiscalYear, fiscalYearStartMonth);
+    return { start: startDate, end: endDate };
+  }, [fiscalYear, fiscalYearStartMonth]);
   const annualProfitForecast = useMemo(() => calculateAnnualProfitForecast({
     projects: scopedProjects,
     sales: scopedSales,
-    fiscalProjects: filteredProjects,
-    dateRange,
-  }), [scopedProjects, scopedSales, filteredProjects, dateRange]);
+    allSales: sales,
+    dateRange: fyRange,
+    settings,
+  }), [scopedProjects, scopedSales, sales, fyRange, settings]);
 
-  // Build capacity forecast
+  // FY goal progress: always the full fiscal year, construction projects only for project count / margin.
+  const fyGoalMetrics = useMemo(() => {
+    const preconRevenue = scopedSales.filter(s => s.sale_type === 'preconstruction' && s.status === 'closed_won').filter(s => {
+      const d = getSaleEffectiveDate(s);
+      return d >= fyRange.start && d <= fyRange.end;
+    }).reduce((sum, s) => sum + (Number(s.contract_value) || 0), 0);
+    const constructionRevenue = scopedProjects.filter(p => p.project_type === 'construction')
+      .reduce((sum, p) => sum + projectPeriodFinancials(p, fyRange, false, fiscalYearStartMonth).revenue, 0);
+    const closedConstructionCount = scopedProjects.filter(p => p.project_type === 'construction' && p.status === 'closed' && projectClosedDate(p) >= fyRange.start && projectClosedDate(p) <= fyRange.end).length;
+    return {
+      totalRevenue: preconRevenue + constructionRevenue,
+      marginPercent: constructionRevenue > 0 ? annualProfitForecast.realizedGP / constructionRevenue * 100 : 0,
+      closedConstructionCount,
+    };
+  }, [scopedSales, scopedProjects, fyRange, fiscalYearStartMonth, annualProfitForecast]);
+
+  // Build capacity forecast (shared pipeline forecast; construction projects only)
   const capacityForecast = useMemo(() => {
     if (!currentFiscalGoal?.revenue_target) return null;
+    const now = new Date();
+    const forecast = buildPipelineForecast({ projects: scopedProjects, sales: scopedSales, allSales: sales, range: fyRange, settings, now });
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1;
-    const fiscalYearEnd = getFiscalYearDates(fiscalYear, fiscalYearStartMonth).endDate;
-    const monthsLeftInYear = Math.max(0, (fiscalYearEnd.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    
+    // Whole months left in the FY, counting the current month.
+    const monthsLeftInYear = Math.max(0, (fyRange.end.getFullYear() - now.getFullYear()) * 12 + (fyRange.end.getMonth() - now.getMonth()) + 1);
     const capacitySchedule = (settings.monthly_capacity_schedule || [])
       .filter(e => e.effective_year && e.effective_month && e.monthly_capacity)
       .sort((a, b) => a.effective_year !== b.effective_year ? a.effective_year - b.effective_year : a.effective_month - b.effective_month);
-
     const getCapacityForMonth = (year, month) => {
       let capacity = null;
       for (const entry of capacitySchedule) {
-        if (entry.effective_year < year || (entry.effective_year === year && entry.effective_month <= month)) {
-          capacity = entry.monthly_capacity;
-        }
+        if (entry.effective_year < year || (entry.effective_year === year && entry.effective_month <= month)) capacity = entry.monthly_capacity;
       }
       return capacity;
     };
-
-    const currentCapacity = getCapacityForMonth(currentDate.getFullYear(), currentDate.getMonth() + 1);
+    const currentCapacity = getCapacityForMonth(now.getFullYear(), now.getMonth() + 1);
     const currentYearMonthlyCapacity = currentCapacity || (currentFiscalGoal.revenue_target / 12);
-    const nextYearCapacity = getCapacityForMonth(currentDate.getFullYear() + 1, 1);
+    const nextFYStart = getFiscalYearDates(Number(fiscalYear) + 1, fiscalYearStartMonth).startDate;
+    const nextYearCapacity = getCapacityForMonth(nextFYStart.getFullYear(), nextFYStart.getMonth() + 1);
     const nextYearMonthlyCapacity = nextYearCapacity || (settings.next_year_revenue_target ? settings.next_year_revenue_target / 12 : currentYearMonthlyCapacity);
-    const hasManualCapacity = !!currentCapacity;
 
-    // Dynamic precon→construction conversion rate
-    // "Converted" = closed_won precon sale that has a construction sale linked to it
-    // "Not converted" = closed_won precon-only (no construction link) + closed_lost
-    const closedPreconSales = scopedSales.filter(s => s.sale_type === 'preconstruction' && ['closed_won', 'closed_lost'].includes(s.status));
-    const convertedToConstruction = closedPreconSales.filter(s => {
-      if (s.status !== 'closed_won') return false;
-      return scopedSales.some(cs => cs.linked_precon_sale_id === s.id);
-    }).length;
-    const totalClosedPrecon = closedPreconSales.length;
-    const notConverted = totalClosedPrecon - convertedToConstruction;
-    // Need 3+ closed precon sales for meaningful data; default to 50% otherwise
-    const preconConversionRate = totalClosedPrecon >= 3 ? convertedToConstruction / totalClosedPrecon : 0.5;
+    const split = (rows, key) => rows.reduce((acc, r) => { const t = r.buildType === 'subcontractor' ? 'sub' : r.buildType === 'in_house' ? 'inHouse' : 'mixed'; acc[t] += r[key] || 0; return acc; }, { inHouse: 0, sub: 0, mixed: 0 });
+    const activeRows = [...forecast.activeProjects, ...forecast.signedNoProject.map(r => ({ ...r, remainingValue: r.fyValue + r.beyondValue }))];
+    const active = split(activeRows, 'remainingValue');
+    const preconRows = forecast.precon.map(r => ({ ...r, total: r.fyValue + r.beyondValue }));
+    const precon = split(preconRows, 'total');
+    const activeProjectsValue = active.inHouse + active.sub + active.mixed;
+    const preconPipelineValue = precon.inHouse + precon.sub + precon.mixed;
 
-    // Filter projects by include_in_forecast (default true)
-    const forecastProjects = scopedProjects.filter(p => p.include_in_forecast !== false && p.status !== 'closed');
-    const excludedProjectsCount = scopedProjects.filter(p => p.include_in_forecast === false && p.status !== 'closed').length;
-
-    let activeInHouse = 0, activeSub = 0, activeMixed = 0;
-    const activeProjectsValue = forecastProjects
-      .reduce((sum, p) => {
-        const contractVal = p.contract_value || 0;
-        const pastAllocPct = (p.monthly_revenue_allocations || [])
-          .filter(a => {
-            let aYear = a.year != null ? Number(a.year) : null;
-            let aMonth = a.month != null ? Number(a.month) : null;
-            if (!aYear && a.period) { const parts = a.period.split('-'); aYear = parseInt(parts[0]); aMonth = parseInt(parts[1]); }
-            if (!aYear || !aMonth) return false;
-            return (aYear < currentYear) || (aYear === currentYear && aMonth < currentMonth);
-          })
-          .reduce((s, a) => s + (a.percentage || 0), 0);
-        const remaining = contractVal - (contractVal * pastAllocPct / 100);
-        const buildType = p.forecast_build_type || 'in_house';
-        if (buildType === 'in_house') activeInHouse += remaining;
-        else if (buildType === 'subcontractor') activeSub += remaining;
-        else activeMixed += remaining;
-        return sum + remaining;
-      }, 0);
-
-    // Filter precon sales
-    const forecastSales = scopedSales.filter(s => s.sale_type === 'preconstruction' && s.status !== 'closed_won' && s.status !== 'closed_lost' && s.include_in_forecast !== false);
-    const excludedSalesCount = scopedSales.filter(s => s.sale_type === 'preconstruction' && s.status !== 'closed_won' && s.status !== 'closed_lost' && s.include_in_forecast === false).length;
-
-    let preconInHouseRaw = 0, preconSubRaw = 0, preconMixedRaw = 0;
-    const preconPipelineValueRaw = forecastSales
-      .reduce((sum, s) => {
-        const val = s.estimated_construction_budget || 0;
-        const buildType = s.forecast_build_type || 'in_house';
-        if (buildType === 'in_house') preconInHouseRaw += val;
-        else if (buildType === 'subcontractor') preconSubRaw += val;
-        else preconMixedRaw += val;
-        return sum + val;
-      }, 0);
-
-    // Apply conversion rate to precon pipeline
-    const preconPipelineValue = preconPipelineValueRaw * preconConversionRate;
-    const preconInHouse = preconInHouseRaw * preconConversionRate;
-    const preconSub = preconSubRaw * preconConversionRate;
-    const preconMixed = preconMixedRaw * preconConversionRate;
-
-    const totalPipeline = activeProjectsValue + preconPipelineValue;
-
-    // In-house load only — sub work doesn't count against crew capacity
-    // Mixed = 50% in-house assumption
-    const activeInHouseLoad = activeInHouse + (activeMixed * 0.5);
-    const preconInHouseLoad = preconInHouse + (preconMixed * 0.5);
-
-    // Booked in-house backlog (active projects only)
-    let bookedRemaining = activeInHouseLoad;
-    let bookedBacklog = 0;
-    const bookedCapYR = currentYearMonthlyCapacity * monthsLeftInYear;
-    if (bookedRemaining > bookedCapYR) {
-      bookedBacklog += monthsLeftInYear;
-      bookedRemaining -= bookedCapYR;
-      bookedBacklog += nextYearMonthlyCapacity > 0 ? bookedRemaining / nextYearMonthlyCapacity : 0;
-    } else {
-      bookedBacklog = currentYearMonthlyCapacity > 0 ? bookedRemaining / currentYearMonthlyCapacity : 0;
-    }
-
-    // Total in-house backlog (booked + adjusted precon)
-    let remainingPipeline = activeInHouseLoad + preconInHouseLoad;
-    let monthsOfBacklog = 0;
-    const currentYearCapacityTotal = currentYearMonthlyCapacity * monthsLeftInYear;
-    if (remainingPipeline > currentYearCapacityTotal) {
-      monthsOfBacklog += monthsLeftInYear;
-      remainingPipeline -= currentYearCapacityTotal;
-      monthsOfBacklog += nextYearMonthlyCapacity > 0 ? remainingPipeline / nextYearMonthlyCapacity : 0;
-    } else {
-      monthsOfBacklog = currentYearMonthlyCapacity > 0 ? remainingPipeline / currentYearMonthlyCapacity : 0;
-    }
-
+    const backlogMonths = (load) => {
+      const capYR = currentYearMonthlyCapacity * monthsLeftInYear;
+      if (load > capYR) return monthsLeftInYear + (nextYearMonthlyCapacity > 0 ? (load - capYR) / nextYearMonthlyCapacity : 0);
+      return currentYearMonthlyCapacity > 0 ? load / currentYearMonthlyCapacity : 0;
+    };
+    const activeInHouseLoad = active.inHouse + active.mixed * 0.5;
+    const preconInHouseLoad = precon.inHouse + precon.mixed * 0.5;
+    const t = forecast.totals;
     return {
-      monthlyCapacity: currentYearMonthlyCapacity, nextYearMonthlyCapacity,
-      activeProjectsValue, preconPipelineValue, preconPipelineValueRaw, totalPipeline, monthsOfBacklog,
-      bookedBacklog,
-      preconConversionRate, convertedToConstruction, totalClosedPrecon,
+      monthlyCapacity: currentYearMonthlyCapacity, nextYearMonthlyCapacity, monthsLeftInYear,
+      activeProjectsValue, preconPipelineValue, preconPipelineValueRaw: t.preconRaw, totalPipeline: activeProjectsValue + preconPipelineValue,
+      thisFY: { active: t.activeFY + t.signedFY, precon: t.preconFY, total: t.activeFY + t.signedFY + t.preconFY },
+      beyondFY: { active: t.activeBeyond + t.signedBeyond, precon: t.preconBeyond, total: t.activeBeyond + t.signedBeyond + t.preconBeyond },
+      signedNoProjectValue: t.signedFY + t.signedBeyond, signedNoProjectCount: forecast.signedNoProject.length,
+      monthsOfBacklog: backlogMonths(activeInHouseLoad + preconInHouseLoad),
+      bookedBacklog: backlogMonths(activeInHouseLoad),
+      preconConversionRate: forecast.conversion.rate ?? 0, convertedToConstruction: forecast.conversion.converted, totalClosedPrecon: forecast.conversion.decided,
+      conversionHasHistory: forecast.conversion.hasHistory, stageProbabilities: forecast.probabilities,
       inHouseLoad: activeInHouseLoad + preconInHouseLoad,
       usingGrowthForecast: !!settings.next_year_revenue_target || !!nextYearCapacity,
-      hasManualCapacity,
-      activeInHouse, activeSub, activeMixed,
-      preconInHouse, preconSub, preconMixed,
-      excludedProjectsCount, excludedSalesCount,
+      hasManualCapacity: !!currentCapacity,
+      activeInHouse: active.inHouse, activeSub: active.sub, activeMixed: active.mixed,
+      preconInHouse: precon.inHouse, preconSub: precon.sub, preconMixed: precon.mixed,
+      excludedProjectsCount: forecast.excludedProjectsCount, excludedSalesCount: forecast.excludedSalesCount,
     };
-  }, [currentFiscalGoal, scopedProjects, scopedSales, settings, fiscalYear, fiscalYearStartMonth]);
+  }, [currentFiscalGoal, scopedProjects, scopedSales, sales, settings, fiscalYear, fiscalYearStartMonth, fyRange]);
 
   // Monthly trend data
   const monthlyTrendData = useMemo(() => {
@@ -654,10 +601,10 @@ export default function Dashboard() {
       {/* Fiscal Goal Progress */}
       <FiscalGoalProgress
         currentFiscalGoal={currentFiscalGoal}
-        totalRevenue={metrics.totalRevenue}
-        marginPercent={metrics.marginPercent}
+        totalRevenue={fyGoalMetrics.totalRevenue}
+        marginPercent={fyGoalMetrics.marginPercent}
         actualGrossProfit={annualProfitForecast.realizedGP}
-        filteredProjectsCount={scopedProjects.filter(p => p.status === 'closed' && projectClosedDate(p) >= dateRange.start && projectClosedDate(p) <= dateRange.end).length}
+        filteredProjectsCount={fyGoalMetrics.closedConstructionCount}
         fiscalYear={fiscalYear}
         fiscalYearStartMonth={fiscalYearStartMonth}
       />
