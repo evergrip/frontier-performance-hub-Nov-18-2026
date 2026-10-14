@@ -4,7 +4,7 @@ import { Clock, Building2, Wrench, Layers, Pencil } from 'lucide-react';
 import { getFiscalYearLabel } from '../utils/fiscalYear';
 import ForecastProjectListDialog from './ForecastProjectListDialog';
 
-export default function BuildCapacityForecast({ capacityForecast, currentFiscalGoal, fiscalYear, fiscalYearStartMonth, settings, projects, preconSales, clients, sales }) {
+export default function BuildCapacityForecast({ capacityForecast, staffCapacity, currentFiscalGoal, fiscalYear, fiscalYearStartMonth, settings, projects, preconSales, clients, sales }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTab, setDialogTab] = useState('projects');
   if (!capacityForecast) return null;
@@ -50,7 +50,9 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
           Build Capacity Forecast
         </CardTitle>
         <CardDescription>
-          Based on {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} revenue target of ${(currentFiscalGoal.revenue_target / 1000000).toFixed(1)}M
+          {capacityForecast.capacitySource === 'staff'
+            ? <>Capacity from staff complement ({staffCapacity.staff.pmCount} PMs, {staffCapacity.staff.crewCount} field crew) · {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)}</>
+            : <>Based on {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} {capacityForecast.capacitySource === 'manual' ? 'manual capacity schedule' : `revenue target of $${((currentFiscalGoal?.revenue_target || 0) / 1000000).toFixed(1)}M`}</>}
           {capacityForecast.usingGrowthForecast && settings.next_year_revenue_target && (
             <> · Next year: ${(settings.next_year_revenue_target / 1000000).toFixed(1)}M</>
           )}
@@ -68,7 +70,7 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
               ${(capacityForecast.monthlyCapacity / 1000).toFixed(0)}K
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              {capacityForecast.hasManualCapacity ? 'Manual override' : 'From annual target'}
+              {capacityForecast.capacitySource === 'staff' ? 'From staff (avg. remaining FY months)' : capacityForecast.hasManualCapacity ? 'Manual override' : 'From annual target'}
               {capacityForecast.usingGrowthForecast && (
                 <> · Next: ${(capacityForecast.nextYearMonthlyCapacity / 1000).toFixed(0)}K</>
               )}
@@ -168,6 +170,7 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
             </div>
           )}
         </div>
+        {staffCapacity && <StaffCapacityTable staffCapacity={staffCapacity} />}
       </CardContent>
     </Card>
     <ForecastProjectListDialog
@@ -181,5 +184,64 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
       settings={settings}
     />
     </>
+  );
+}
+
+const k = (v) => `$${Math.round((v || 0) / 1000).toLocaleString()}K`;
+const pct = (u) => (Number.isFinite(u) ? `${Math.round(u * 100)}%` : '∞');
+
+// Capacity vs forecast backlog by month for the fiscal year, with the constraining role.
+function StaffCapacityTable({ staffCapacity }) {
+  const { staff, config, months } = staffCapacity;
+  const overMonths = months.filter((m) => m.over).length;
+  return (
+    <div className="mt-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+        <p className="text-sm font-semibold text-slate-800">Staff capacity vs forecast backlog, by month</p>
+        <p className="text-xs text-slate-500">
+          PMs: {staff.pmCount}{staff.pmAuto ? ' (auto)' : ''} · Field crew: {staff.crewCount}{staff.crewAuto ? ' (auto)' : ''} · Supers: {staff.superCount || 'not modelled'} · Subtrades on file: {staff.subtradeCount}{config.subtrade_monthly_value == null ? ' (capacity not modelled)' : ''}
+        </p>
+      </div>
+      {staff.pmCount === 0 && staff.crewCount === 0 && (
+        <p className="text-xs text-amber-600 mb-2">No PMs or field crew found. Set headcounts under Company Settings → Build capacity model.</p>
+      )}
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 text-slate-600">
+            <tr>
+              <th className="px-2 py-1.5 text-left">Month</th>
+              <th className="px-2 py-1.5 text-right">Backlog (weighted)</th>
+              <th className="px-2 py-1.5 text-right">In-house / Sub</th>
+              <th className="px-2 py-1.5 text-right">Jobs</th>
+              <th className="px-2 py-1.5 text-right">Capacity ($)</th>
+              <th className="px-2 py-1.5 text-right">Crew hrs need / avail</th>
+              <th className="px-2 py-1.5 text-left">Constraint</th>
+              <th className="px-2 py-1.5 text-right">Load</th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map((m) => {
+              const crew = m.roles.find((r) => r.role.startsWith('Field crew'));
+              const u = m.constraint?.utilization || 0;
+              return (
+                <tr key={m.month.toISOString()} className={m.over ? 'bg-red-50' : u > 0.85 ? 'bg-amber-50' : ''}>
+                  <td className="px-2 py-1.5">{m.month.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</td>
+                  <td className="px-2 py-1.5 text-right font-medium">{k(m.total)}</td>
+                  <td className="px-2 py-1.5 text-right text-slate-500">{k(m.inHouse)} / {k(m.sub)}</td>
+                  <td className="px-2 py-1.5 text-right">{m.jobs.toFixed(1)}</td>
+                  <td className="px-2 py-1.5 text-right">{k(m.dollarCapacity)}</td>
+                  <td className="px-2 py-1.5 text-right">{Math.round(crew?.demand || 0)} / {Math.round(crew?.capacity || 0)}</td>
+                  <td className="px-2 py-1.5">{m.total > 0 ? m.constraint?.role : '—'}</td>
+                  <td className={`px-2 py-1.5 text-right font-semibold ${m.over ? 'text-red-600' : u > 0.85 ? 'text-amber-600' : 'text-emerald-600'}`}>{m.total > 0 ? pct(u) : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-slate-400 mt-1">
+        {overMonths > 0 ? `${overMonths} month(s) over capacity. ` : ''}Backlog = active jobs (allocations) + signed sales + stage-weighted precon. Assumptions: PM ${Math.round(config.pm_monthly_value / 1000)}K/month and {config.pm_max_concurrent_jobs} jobs; ${config.revenue_per_crew_hour} of in-house work per crew hour; {config.crew_hours_per_day} h/day less holidays and unavailability.
+      </p>
+    </div>
   );
 }
