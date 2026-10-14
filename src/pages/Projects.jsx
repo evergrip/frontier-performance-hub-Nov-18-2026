@@ -223,7 +223,7 @@ export default function Projects() {
     setSelectedProject(project);
     setProjectForm({
       actual_costs: project.actual_costs || project.contract_value || '',
-      actual_margin: project.actual_margin || 45,
+      actual_margin: project.actual_margin ?? sales.find(sale => sale.id === project.sale_id)?.estimated_margin ?? '',
       project_manager_id: project.project_manager_id || ''
     });
     
@@ -247,7 +247,7 @@ export default function Projects() {
     setSelectedProject(project);
     setProjectForm({
       actual_costs: project.actual_costs || project.contract_value || '',
-      actual_margin: project.actual_margin || 45,
+      actual_margin: project.actual_margin ?? sales.find(sale => sale.id === project.sale_id)?.estimated_margin ?? '',
       variance_explanation: ''
     });
     
@@ -269,7 +269,7 @@ export default function Projects() {
     setSelectedProject(project);
     setProjectForm({
       actual_costs: project.actual_costs || project.contract_value || '',
-      actual_margin: project.actual_margin || 45,
+      actual_margin: project.actual_margin ?? sales.find(sale => sale.id === project.sale_id)?.estimated_margin ?? '',
       client_id: project.client_id || ''
     });
     
@@ -338,7 +338,8 @@ export default function Projects() {
       status: nextStatus,
       status_history: newHistory,
       actual_costs: parseFloat(projectForm.actual_costs) || 0,
-      actual_margin: parseFloat(projectForm.actual_margin) || 0
+      // Blank margin stays blank (forecast then uses the sale's estimated margin) instead of saving 0.
+      actual_margin: projectForm.actual_margin === '' || projectForm.actual_margin == null ? null : (parseFloat(projectForm.actual_margin) || 0)
     };
 
     // Save project manager if set
@@ -439,7 +440,7 @@ export default function Projects() {
       projectId: selectedProject.id,
       status: selectedProject.status,
       actual_costs: parseFloat(projectForm.actual_costs) || 0,
-      actual_margin: parseFloat(projectForm.actual_margin) || 0,
+      actual_margin: projectForm.actual_margin === '' || projectForm.actual_margin == null ? null : (parseFloat(projectForm.actual_margin) || 0),
       client_id: projectForm.client_id || selectedProject.client_id
     };
     
