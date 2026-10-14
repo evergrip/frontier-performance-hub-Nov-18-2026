@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, CheckCircle, TrendingUp, Edit2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { periodStartDate } from '@/components/utils/fiscalYear';
 
 export default function KPIEntryCard({ entry, kpi, onExplain }) {
   if (!kpi) return null;
@@ -31,7 +32,7 @@ export default function KPIEntryCard({ entry, kpi, onExplain }) {
               {entry.is_flagged && <Badge variant="destructive" className="gap-1 text-[10px]"><AlertTriangle className="w-3 h-3" />Flagged</Badge>}
             </div>
             <CardDescription>
-              {format(new Date(entry.reporting_period_start_date), 'MMM d')} – {format(new Date(entry.reporting_period_end_date), 'MMM d, yyyy')}
+              {format(periodStartDate(entry.reporting_period_start_date), 'MMM d')} – {format(periodStartDate(entry.reporting_period_end_date), 'MMM d, yyyy')}
             </CardDescription>
 
             <div className="mt-4 flex items-center gap-6 flex-wrap">
