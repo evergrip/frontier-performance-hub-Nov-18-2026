@@ -11,6 +11,10 @@ Deno.serve(async (req) => {
     const results = { processed: 0, created: 0, updated: 0, finalized: 0, errors: [] };
 
     const settingsList = await base44.asServiceRole.entities.CompanySettings.list();
+    // Feature flag: KPIs are off unless CompanySettings.kpis_enabled === true. No-op (nothing read or written).
+    if (settingsList?.[0]?.kpis_enabled !== true) {
+      return Response.json({ success: true, skipped: true, message: 'KPIs are disabled (CompanySettings.kpis_enabled is not true); nothing calculated.' });
+    }
     const fiscalStartMonth = Number(settingsList?.[0]?.fiscal_year_start_month) || 10;
     const today = torontoToday();
 
