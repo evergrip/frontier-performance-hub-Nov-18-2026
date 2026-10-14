@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { startOfMonth, endOfMonth, format, eachMonthOfInterval } from 'date-fns';
 import { getFiscalYearDates, getCurrentFiscalYear, getFiscalQuarterDates, getCurrentFiscalQuarter, parseLocalDate, endOfLocalDay } from '@/components/utils/fiscalYear';
 import { buildPipelineForecast } from '@/lib/pipelineForecast';
+import { buildStaffCapacity } from '@/lib/staffCapacity';
+import BuildCapacityForecast from '../components/dashboard/BuildCapacityForecast';
 import { projectPeriodFinancials, projectClosedDate } from '@/components/utils/projectPeriod';
 import CarryoverAllocationReview from '@/components/projects/CarryoverAllocationReview';
 import MetricDrilldownDialog from '../components/dashboard/MetricDrilldownDialog';
@@ -87,6 +89,12 @@ export default function Dashboard() {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Staff-capacity inputs (admin-only data, like listUsersBasic)
+  const isAdminUser = user?.role === 'admin';
+  const { data: subtrades = [] } = useQuery({ queryKey: ['subtrades'], queryFn: () => base44.entities.Subtrade.list(), enabled: isAdminUser, staleTime: 5 * 60 * 1000 });
+  const { data: unavailability = [] } = useQuery({ queryKey: ['employee-unavailability'], queryFn: () => base44.entities.EmployeeUnavailability.list(), enabled: isAdminUser, staleTime: 5 * 60 * 1000 });
+  const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: () => base44.entities.Holiday.list(), enabled: isAdminUser, staleTime: 5 * 60 * 1000 });
 
   // Filter meetings for privacy
   const visibleMeetings = allMeetings.filter(m => {
@@ -334,10 +342,18 @@ export default function Dashboard() {
   }, [scopedSales, scopedProjects, fyRange, fiscalYearStartMonth, annualProfitForecast]);
 
   // Build capacity forecast (shared pipeline forecast; construction projects only)
+  const pipelineFY = useMemo(() => buildPipelineForecast({ projects: scopedProjects, sales: scopedSales, allSales: sales, range: fyRange, settings }), [scopedProjects, scopedSales, sales, fyRange, settings]);
+  const staffCapacity = useMemo(() => buildStaffCapacity({ forecast: pipelineFY, range: fyRange, settings, users: allUsers, projects, subtrades, unavailability, holidays }),
+    [pipelineFY, fyRange, settings, allUsers, projects, subtrades, unavailability, holidays]);
+
   const capacityForecast = useMemo(() => {
-    if (!currentFiscalGoal?.revenue_target) return null;
     const now = new Date();
-    const forecast = buildPipelineForecast({ projects: scopedProjects, sales: scopedSales, allSales: sales, range: fyRange, settings, now });
+    const forecast = pipelineFY;
+    // Monthly $ capacity: staff-based (avg of remaining FY months) when staff are known; else manual schedule / revenue target.
+    const remainingMonths = staffCapacity.months.filter(m => m.month >= new Date(now.getFullYear(), now.getMonth(), 1));
+    const staffKnown = staffCapacity.staff.pmCount > 0 || staffCapacity.staff.crewCount > 0;
+    const staffMonthlyCapacity = staffKnown && remainingMonths.length ? remainingMonths.reduce((s, m) => s + m.dollarCapacity, 0) / remainingMonths.length : null;
+    if (!staffMonthlyCapacity && !currentFiscalGoal?.revenue_target && !(settings.monthly_capacity_schedule || []).length) return null;
 
     // Whole months left in the FY, counting the current month.
     const monthsLeftInYear = Math.max(0, (fyRange.end.getFullYear() - now.getFullYear()) * 12 + (fyRange.end.getMonth() - now.getMonth()) + 1);
@@ -352,10 +368,10 @@ export default function Dashboard() {
       return capacity;
     };
     const currentCapacity = getCapacityForMonth(now.getFullYear(), now.getMonth() + 1);
-    const currentYearMonthlyCapacity = currentCapacity || (currentFiscalGoal.revenue_target / 12);
+    const currentYearMonthlyCapacity = staffMonthlyCapacity || currentCapacity || ((currentFiscalGoal?.revenue_target || 0) / 12);
     const nextFYStart = getFiscalYearDates(Number(fiscalYear) + 1, fiscalYearStartMonth).startDate;
     const nextYearCapacity = getCapacityForMonth(nextFYStart.getFullYear(), nextFYStart.getMonth() + 1);
-    const nextYearMonthlyCapacity = nextYearCapacity || (settings.next_year_revenue_target ? settings.next_year_revenue_target / 12 : currentYearMonthlyCapacity);
+    const nextYearMonthlyCapacity = staffMonthlyCapacity || nextYearCapacity || (settings.next_year_revenue_target ? settings.next_year_revenue_target / 12 : currentYearMonthlyCapacity);
 
     const split = (rows, key) => rows.reduce((acc, r) => { const t = r.buildType === 'subcontractor' ? 'sub' : r.buildType === 'in_house' ? 'inHouse' : 'mixed'; acc[t] += r[key] || 0; return acc; }, { inHouse: 0, sub: 0, mixed: 0 });
     const activeRows = [...forecast.activeProjects, ...forecast.signedNoProject.map(r => ({ ...r, remainingValue: r.fyValue + r.beyondValue }))];
@@ -385,12 +401,13 @@ export default function Dashboard() {
       conversionHasHistory: forecast.conversion.hasHistory, stageProbabilities: forecast.probabilities,
       inHouseLoad: activeInHouseLoad + preconInHouseLoad,
       usingGrowthForecast: !!settings.next_year_revenue_target || !!nextYearCapacity,
-      hasManualCapacity: !!currentCapacity,
+      hasManualCapacity: !staffMonthlyCapacity && !!currentCapacity,
+      capacitySource: staffMonthlyCapacity ? 'staff' : currentCapacity ? 'manual' : 'target',
       activeInHouse: active.inHouse, activeSub: active.sub, activeMixed: active.mixed,
       preconInHouse: precon.inHouse, preconSub: precon.sub, preconMixed: precon.mixed,
       excludedProjectsCount: forecast.excludedProjectsCount, excludedSalesCount: forecast.excludedSalesCount,
     };
-  }, [currentFiscalGoal, scopedProjects, scopedSales, sales, settings, fiscalYear, fiscalYearStartMonth, fyRange]);
+  }, [currentFiscalGoal, pipelineFY, staffCapacity, settings, fiscalYear, fiscalYearStartMonth, fyRange]);
 
   // Monthly trend data
   const monthlyTrendData = useMemo(() => {
@@ -597,6 +614,21 @@ export default function Dashboard() {
         fiscalYear={fiscalYear}
         fiscalYearStartMonth={fiscalYearStartMonth}
       />
+
+      {isAdminUser && (
+        <BuildCapacityForecast
+          capacityForecast={capacityForecast}
+          staffCapacity={staffCapacity}
+          currentFiscalGoal={currentFiscalGoal}
+          fiscalYear={fiscalYear}
+          fiscalYearStartMonth={fiscalYearStartMonth}
+          settings={settings}
+          projects={scopedProjects}
+          preconSales={scopedSales.filter(s => s.sale_type === 'preconstruction' && !['closed_won', 'closed_lost'].includes(s.status))}
+          clients={clients}
+          sales={scopedSales}
+        />
+      )}
 
       {/* Fiscal Goal Progress */}
       <FiscalGoalProgress
