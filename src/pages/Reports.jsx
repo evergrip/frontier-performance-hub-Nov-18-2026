@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { BarChart3, Briefcase, Building2, FileText, TrendingUp, Calendar } from 'lucide-react';
-import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
-import { getFiscalYearDates, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
+import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { getFiscalYearDates, getCurrentFiscalYear, getFiscalQuarterDates, getFiscalQuarterLabel, getCurrentFiscalQuarter, parseLocalDate, endOfLocalDay } from '@/components/utils/fiscalYear';
 import SalesReport from '../components/reports/SalesReport';
 import PreConstructionReport from '../components/reports/PreConstructionReport';
 import ConstructionPerformanceReport from '../components/reports/ConstructionPerformanceReport';
@@ -21,7 +21,7 @@ export default function Reports() {
   const [activeTab, setActiveTab] = useState('sales');
   const [dateRangeType, setDateRangeType] = useState('fiscal');
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-  const [selectedQuarter, setSelectedQuarter] = useState('Q1');
+  const [selectedQuarter, setSelectedQuarter] = useState(() => `Q${getCurrentFiscalQuarter()}`);
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(() => getCurrentFiscalYear());
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -51,7 +51,8 @@ export default function Reports() {
   const getDateRange = () => {
     switch (dateRangeType) {
       case 'month': {
-        const date = new Date(selectedMonth);
+        // 'yyyy-MM' parsed as a local date (new Date('2026-10') is UTC = Sep 30 evening in Toronto).
+        const date = parseLocalDate(selectedMonth) || new Date();
         return {
           start: startOfMonth(date),
           end: endOfMonth(date)
@@ -59,11 +60,9 @@ export default function Reports() {
       }
       case 'quarter': {
         const quarterNum = parseInt(selectedQuarter.replace('Q', ''));
-        const date = new Date(new Date().getFullYear(), (quarterNum - 1) * 3, 1);
-        return {
-          start: startOfQuarter(date),
-          end: endOfQuarter(date)
-        };
+        // Fiscal quarter of the selected fiscal year (Q1 = Oct–Dec for an October start).
+        const { startDate, endDate } = getFiscalQuarterDates(selectedFiscalYear, quarterNum, fiscalStartMonth);
+        return { start: startDate, end: endDate };
       }
       case 'fiscal': {
         const { startDate, endDate } = getFiscalYearDates(selectedFiscalYear, fiscalStartMonth);
@@ -71,8 +70,8 @@ export default function Reports() {
       }
       case 'custom': {
         return {
-          start: customStartDate ? new Date(customStartDate) : null,
-          end: customEndDate ? new Date(customEndDate) : null
+          start: parseLocalDate(customStartDate),
+          end: endOfLocalDay(customEndDate)
         };
       }
       default:
@@ -134,16 +133,13 @@ export default function Reports() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Q1">Q1 (Jan - Mar)</SelectItem>
-                    <SelectItem value="Q2">Q2 (Apr - Jun)</SelectItem>
-                    <SelectItem value="Q3">Q3 (Jul - Sep)</SelectItem>
-                    <SelectItem value="Q4">Q4 (Oct - Dec)</SelectItem>
+                    {[1, 2, 3, 4].map(q => <SelectItem key={q} value={`Q${q}`}>{getFiscalQuarterLabel(selectedFiscalYear, q, fiscalStartMonth)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            {dateRangeType === 'fiscal' && (
+            {(dateRangeType === 'fiscal' || dateRangeType === 'quarter') && (
               <div>
                 <Label>Fiscal Year</Label>
                 <Select value={selectedFiscalYear.toString()} onValueChange={(v) => setSelectedFiscalYear(Number(v))}>
