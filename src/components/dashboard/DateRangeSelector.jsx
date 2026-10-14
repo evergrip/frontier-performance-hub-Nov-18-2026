@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from 'lucide-react';
-import { getFiscalYearLabel } from '../utils/fiscalYear';
+import { getFiscalYearLabel, getFiscalQuarterLabel } from '../utils/fiscalYear';
 
 export default function DateRangeSelector({
   selectedDateRangeType, setSelectedDateRangeType,
@@ -50,15 +50,18 @@ export default function DateRangeSelector({
         )}
 
         {selectedDateRangeType === 'quarter' && (
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div>
-              <Label className="text-xs">Quarter</Label>
-              <Input type="number" min="1" max="4" value={selectedQuarter} onChange={(e) => setSelectedQuarter(parseInt(e.target.value))} />
+          <div className="mt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Fiscal Quarter</Label>
+                <Input type="number" min="1" max="4" value={selectedQuarter} onChange={(e) => setSelectedQuarter(parseInt(e.target.value))} />
+              </div>
+              <div>
+                <Label className="text-xs">Fiscal Year (starting year)</Label>
+                <Input type="number" value={fiscalYear} onChange={(e) => setFiscalYear(parseInt(e.target.value))} />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Year</Label>
-              <Input type="number" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} />
-            </div>
+            <p className="text-xs text-slate-500 mt-1">{getFiscalQuarterLabel(fiscalYear, selectedQuarter, fiscalYearStartMonth)}</p>
           </div>
         )}
 
