@@ -19,6 +19,7 @@ export default function GrossProfitTargetProgress({ actual = 0, target, note }) 
       <Progress value={Math.max(0, Math.min(attainment, 100))} className="h-3" />
       <p className="text-sm text-muted-foreground">{gap > 0 ? `${money(gap)} Gross Profit remaining to target` : `Target achieved · ${money(profit - goal)} above target`}</p>
     </> : <>
+      <p className="text-2xl font-bold text-foreground">{money(profit)} <span className="text-sm font-normal text-muted-foreground">current Gross Profit</span></p>
       <p className="text-sm text-muted-foreground">No Gross Profit target is set for this fiscal year. Existing revenue targets have not been converted.</p>
       <Link to="/CompanySettings" className="text-sm text-primary underline">Set the company Gross Profit target</Link>
     </>}

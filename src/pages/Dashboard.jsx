@@ -16,6 +16,7 @@ import MetricDrilldownDialog from '../components/dashboard/MetricDrilldownDialog
 import DateRangeSelector from '../components/dashboard/DateRangeSelector';
 import AnnualProfitForecast from '../components/dashboard/AnnualProfitForecast';
 import FiscalGoalProgress from '../components/dashboard/FiscalGoalProgress';
+import FiscalProfitProgress from '@/components/dashboard/FiscalProfitProgress';
 import RevenueTrendChart from '../components/dashboard/RevenueTrendChart';
 import CustomizeMetricsDialog from '../components/dashboard/CustomizeMetricsDialog';
 import MyMeetingsDashboard from '../components/dashboard/MyMeetingsDashboard';
@@ -69,7 +70,7 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: fiscalGoals = [] } = useQuery({
+  const { data: fiscalGoals = [], dataUpdatedAt: goalsUpdatedAt } = useQuery({
     queryKey: ['fiscalGoals'],
     queryFn: () => base44.entities.FiscalGoal.list(),
     staleTime: 5 * 60 * 1000,
@@ -125,7 +126,7 @@ export default function Dashboard() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading, dataUpdatedAt: projectsUpdatedAt } = useQuery({
     queryKey: ['projects'],
     queryFn: () => base44.entities.Project.list(),
     staleTime: 2 * 60 * 1000,
@@ -607,6 +608,8 @@ export default function Dashboard() {
             subtitle={`${metrics.closedConstructionProjects.length} closed construction projects`} onClick={() => setDrilldownMetric('avgProjectSize')} />
         )}
       </div>
+
+      <FiscalProfitProgress fiscalYear={fiscalYear} userId={user?.id} projectsUpdatedAt={projectsUpdatedAt} goalsUpdatedAt={goalsUpdatedAt} />
 
       <AnnualProfitForecast
         forecast={annualProfitForecast}

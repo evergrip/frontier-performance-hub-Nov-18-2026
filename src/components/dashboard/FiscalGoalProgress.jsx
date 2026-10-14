@@ -2,23 +2,22 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getFiscalYearLabel } from '../utils/fiscalYear';
-import { Link } from 'react-router-dom';
-import GrossProfitTargetProgress from '@/components/common/GrossProfitTargetProgress';
+
+
 
 export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, marginPercent, filteredProjectsCount, actualGrossProfit, fiscalYear, fiscalYearStartMonth }) {
-  if (!currentFiscalGoal) return <Card><CardHeader><CardTitle>{getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} Goals</CardTitle></CardHeader><CardContent><p>No targets have been set for this fiscal year. Prior-year targets are preserved separately.</p><Link className="text-primary underline" to="/CompanySettings">Set annual goals</Link></CardContent></Card>;
+  if (!currentFiscalGoal || ![currentFiscalGoal.revenue_target, currentFiscalGoal.gross_margin_target, currentFiscalGoal.project_count_target].some(value => Number(value) > 0)) return null;
 
   return (
     <Card className="border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Target className="w-5 h-5 text-emerald-600" />
-          {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth, true)} Goals
+          {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth, true)} Secondary Goals
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <GrossProfitTargetProgress actual={actualGrossProfit} target={currentFiscalGoal.gross_profit_target} note="Annual recognized construction Gross Profit, using the same calculation as the Annual Profit Forecast." />
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {currentFiscalGoal.revenue_target > 0 && (
             <div>
               <p className="text-sm text-slate-600 mb-1">Revenue Planning (Secondary)</p>
