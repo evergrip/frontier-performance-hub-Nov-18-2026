@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Target, TrendingUp, AlertTriangle, CheckCircle, Calendar, Edit2, ClipboardCheck, Save, CheckCircle2, XCircle, PenLine, Sparkles, Plus } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+import { getKpiPeriodRange, periodStartDate, periodEndDate, toPeriodBoundary } from '@/components/utils/fiscalYear';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
@@ -33,6 +33,9 @@ export default function MyKPIs() {
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  const { data: companySettingsList = [] } = useQuery({ queryKey: ['companySettings'], queryFn: () => base44.entities.CompanySettings.list() });
+  const fiscalStartMonth = Number(companySettingsList[0]?.fiscal_year_start_month) || 10;
 
   const { data: entries = [] } = useQuery({
     queryKey: ['my-kpi-entries', user?.id],
@@ -94,23 +97,14 @@ export default function MyKPIs() {
 
   const getKPIById = (id) => kpis.find(k => k.id === id);
 
-  const getPeriodDates = (kpi) => {
-    const now = new Date();
-    switch (kpi.reporting_period_type) {
-      case 'daily': return { start: startOfDay(now), end: endOfDay(now) };
-      case 'weekly': return { start: startOfWeek(now), end: endOfWeek(now) };
-      case 'monthly': return { start: startOfMonth(now), end: endOfMonth(now) };
-      case 'quarterly': return { start: startOfQuarter(now), end: endOfQuarter(now) };
-      case 'yearly': return { start: startOfYear(now), end: endOfYear(now) };
-      default: return { start: startOfMonth(now), end: endOfMonth(now) };
-    }
-  };
+  // Fiscal quarters/years and local calendar dates (see getKpiPeriodRange).
+  const getPeriodDates = (kpi) => getKpiPeriodRange(kpi.reporting_period_type, fiscalStartMonth);
 
   const currentPeriodEntries = entries.filter(entry => {
-    const start = new Date(entry.reporting_period_start_date);
-    const end = new Date(entry.reporting_period_end_date);
+    const start = periodStartDate(entry.reporting_period_start_date);
+    const end = periodEndDate(entry.reporting_period_end_date);
     const now = new Date();
-    return now >= start && now <= end;
+    return start && end && now >= start && now <= end;
   });
 
   const displayEntries = selectedPeriod === 'current' ? currentPeriodEntries : entries;
@@ -122,8 +116,8 @@ export default function MyKPIs() {
     const { start, end } = getPeriodDates(kpi);
     return entries.some(entry =>
       entry.kpi_id === kpi.id &&
-      new Date(entry.reporting_period_start_date) >= start &&
-      new Date(entry.reporting_period_end_date) <= end
+      periodStartDate(entry.reporting_period_start_date) >= start &&
+      periodEndDate(entry.reporting_period_end_date) <= end
     );
   };
 
@@ -133,8 +127,8 @@ export default function MyKPIs() {
     createEntryMutation.mutate({
       kpi_id: manualEntryKPI.id,
       user_id: user.id,
-      reporting_period_start_date: start.toISOString(),
-      reporting_period_end_date: end.toISOString(),
+      reporting_period_start_date: toPeriodBoundary(start),
+      reporting_period_end_date: toPeriodBoundary(end, true),
       target_value_at_entry: manualEntryKPI.target_value || 0,
       ...entryData
     });
@@ -165,7 +159,7 @@ export default function MyKPIs() {
     const { start, end } = getPeriodDates(selectedScorecard);
     submitScorecardMutation.mutate({
       kpi_id: selectedScorecard.id, user_id: user.id,
-      reporting_period_start_date: start.toISOString(), reporting_period_end_date: end.toISOString(),
+      reporting_period_start_date: toPeriodBoundary(start), reporting_period_end_date: toPeriodBoundary(end, true),
       actual_value: totalPoints, target_value_at_entry: selectedScorecard.target_value || maxPoints,
       scorecard_answers: answersData, is_flagged: totalPoints < (selectedScorecard.target_value || maxPoints),
       manual_entry: true
