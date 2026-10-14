@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Clock, DollarSign, TrendingUp } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { parseLocalDate } from '@/components/utils/fiscalYear';
 
 export default function PreConstructionReport({ dateRange, staffId }) {
   const [selectedMonth, setSelectedMonth] = useState(null);
@@ -44,10 +45,11 @@ export default function PreConstructionReport({ dateRange, staffId }) {
     if (!dateRange.start || !dateRange.end) return [];
     
     return sales.filter(sale => {
-      if (sale.sale_type !== 'preconstruction') return false;
-      if (!sale.close_date) return false;
-      
-      const saleCloseDate = new Date(sale.close_date);
+      // Closed-won only, dated by the closed_won entry in phase_history (fallback close_date).
+      if (sale.sale_type !== 'preconstruction' || sale.status !== 'closed_won') return false;
+      const wonEntry = [...(sale.phase_history || [])].reverse().find(h => h.status === 'closed_won');
+      const saleCloseDate = parseLocalDate(wonEntry?.entered_date || sale.close_date);
+      if (!saleCloseDate) return false;
       
       // Include if sale closed within the date range
       const inDateRange = saleCloseDate >= dateRange.start && saleCloseDate <= dateRange.end;
@@ -124,7 +126,7 @@ export default function PreConstructionReport({ dateRange, staffId }) {
     activePipeline.forEach(sale => {
       if (!sale.target_precon_completion_date || !sale.estimated_construction_budget) return;
 
-      const completionDate = new Date(sale.target_precon_completion_date);
+      const completionDate = parseLocalDate(sale.target_precon_completion_date);
       const monthKey = format(completionDate, 'MMM yyyy');
 
       if (!forecastByMonth[monthKey]) {
