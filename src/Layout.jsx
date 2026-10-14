@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FloatingReportButton from '@/components/devlog/FloatingReportButton';
+import { isKpiEnabled, KPI_PAGES } from '@/lib/features';
 
 const PUBLIC_PAGES = ['SurveyPublic'];
 
@@ -27,6 +28,8 @@ export default function Layout({ children, currentPageName }) {
 
   const settings = settingsList[0] || {};
   const schedulerEnabled = !!settings.scheduler_enabled;
+  const kpisEnabled = isKpiEnabled(settings);
+  const kpiPage = (item) => kpisEnabled || !KPI_PAGES.includes(item.page);
   const branding = {
     company_name: settings.company_name || 'Frontier Building Group',
     logo_url: settings.logo_url || '',
@@ -86,7 +89,7 @@ export default function Layout({ children, currentPageName }) {
       permission: 'insights',
       items: [
         { name: 'Reports', icon: Settings, page: 'Reports' },
-        { name: 'My Performance', icon: Target, page: 'MyKPIs' },
+        ...(kpisEnabled ? [{ name: 'My Performance', icon: Target, page: 'MyKPIs' }] : []),
       ]
     },
     {
@@ -117,7 +120,7 @@ export default function Layout({ children, currentPageName }) {
 
   const managerNavigation = [
     { name: 'KPI Definitions', icon: Target, page: 'KPIDefinitions' },
-  ];
+  ].filter(kpiPage);
 
   const adminNavigation = [
     ...(user?.role === 'admin' ? [{ name: 'Core Verification', icon: ClipboardList, page: 'CoreVerification' }] : []),
@@ -126,9 +129,9 @@ export default function Layout({ children, currentPageName }) {
       { name: 'Data Quality', icon: Flag, page: 'DataQuality' },
       { name: 'Import Historical Data', icon: Upload, page: 'ImportHistoricalData' },
       ...(schedulerEnabled ? [{ name: 'Subtrades', icon: Wrench, page: 'Subtrades' }] : []),
-      { name: 'KPI Definitions', icon: Target, page: 'KPIDefinitions' },
+      ...(kpisEnabled ? [{ name: 'KPI Definitions', icon: Target, page: 'KPIDefinitions' }] : []),
     ] : []),
-    ...(hasPermission(user, 'insights') ? [
+    ...(kpisEnabled && hasPermission(user, 'insights') ? [
       { name: 'KPI Dashboard', icon: LayoutDashboard, page: 'KPIDashboard' },
     ] : []),
     ...(hasPermission(user, 'varcomp_admin') ? [
@@ -300,7 +303,7 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             {/* Manager navigation (non-admin managers) */}
-            {user?.role !== 'admin' && isManager && (
+            {user?.role !== 'admin' && isManager && managerNavigation.length > 0 && (
               <>
                 <div className="h-px bg-slate-200 my-4" />
                 <p className="px-4 py-2 text-xs font-semibold text-[#333333] uppercase tracking-wider">
@@ -421,7 +424,12 @@ export default function Layout({ children, currentPageName }) {
 
         {/* Page content */}
         <main className="min-h-screen p-6 lg:p-8">
-          {children}
+          {!kpisEnabled && KPI_PAGES.includes(currentPageName) ? (
+            <div className="max-w-xl mx-auto mt-16 p-6 rounded-xl border border-slate-200 bg-white text-center">
+              <p className="text-lg font-semibold text-slate-900">KPIs are turned off</p>
+              <p className="text-sm text-slate-500 mt-2">An admin can turn KPIs back on in Company Settings. No KPI data has been removed.</p>
+            </div>
+          ) : children}
         </main>
       </div>
 
