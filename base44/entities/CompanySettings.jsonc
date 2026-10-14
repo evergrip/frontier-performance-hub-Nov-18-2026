@@ -74,6 +74,15 @@
       },
       "description": "Schedule of monthly capacity changes"
     },
+    "kpis_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Feature flag: show KPI pages and run KPI calculations (off unless true)"
+    },
+    "capacity_model": {
+      "type": "object",
+      "description": "Build capacity model: pm_count, pm_monthly_value, pm_max_concurrent_jobs, crew_count, crew_hours_per_day, revenue_per_crew_hour, super_count, jobs_per_super, subtrade_monthly_value, mixed_in_house_share (blank = default/auto)"
+    },
     "scheduler_enabled": {
       "type": "boolean",
       "default": false,
