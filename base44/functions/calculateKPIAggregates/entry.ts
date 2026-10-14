@@ -8,14 +8,25 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized - admin access required' }, { status: 403 });
     }
 
-    const results = { processed: 0, created: 0, updated: 0, errors: [] };
+    const results = { processed: 0, created: 0, updated: 0, finalized: 0, errors: [] };
+
+    const settingsList = await base44.asServiceRole.entities.CompanySettings.list();
+    const fiscalStartMonth = Number(settingsList?.[0]?.fiscal_year_start_month) || 10;
+    const today = torontoToday();
 
     // Fetch all active calculated KPIs
     const kpis = await base44.asServiceRole.entities.KPI.filter({ is_active: true, type: "calculated" });
 
     for (const kpi of kpis) {
       try {
-        await processKPI(base44, kpi, results);
+        const current = getReportingPeriod(kpi.reporting_period_type, today, fiscalStartMonth);
+        await processKPI(base44, kpi, results, current);
+        // First day of a new period: recompute the previous period once more so late activity is captured.
+        if (today === current.start) {
+          const previous = getReportingPeriod(kpi.reporting_period_type, addDays(current.start, -1), fiscalStartMonth);
+          await processKPI(base44, kpi, results, previous);
+          results.finalized++;
+        }
         results.processed++;
       } catch (error) {
         results.errors.push({ kpi_id: kpi.id, kpi_name: kpi.name, error: error.message });
@@ -28,15 +39,13 @@ Deno.serve(async (req) => {
   }
 });
 
-async function processKPI(base44, kpi, results) {
+async function processKPI(base44, kpi, results, periodDates) {
   const { source_entity, metric_field, date_field, aggregation_method, filter_conditions, responsible_user_field, reporting_period_type, threshold_comparison, threshold_value, target_value } = kpi;
 
   if (!source_entity || !base44.asServiceRole.entities[source_entity]) {
     throw new Error(`Invalid source entity: ${source_entity}`);
   }
 
-  const periodDates = getReportingPeriod(reporting_period_type);
-  
   // Build query filters
   const queryFilters = { ...(filter_conditions || {}) };
   
@@ -62,10 +71,8 @@ async function processKPI(base44, kpi, results) {
   // Apply date range filter in code for reliability
   if (date_field) {
     sourceData = sourceData.filter(record => {
-      const dateVal = record[date_field];
-      if (!dateVal) return false;
-      const d = new Date(dateVal);
-      return d >= periodDates.start && d <= periodDates.end;
+      const key = torontoDateKey(record[date_field]);
+      return !!key && key >= periodDates.start && key <= periodDates.end;
     });
   }
 
@@ -97,9 +104,9 @@ async function processKPI(base44, kpi, results) {
         user_id: userId,
       });
       const matchingTarget = targets.find(t => {
-        const tStart = new Date(t.reporting_period_start_date);
-        const tEnd = new Date(t.reporting_period_end_date);
-        return tStart <= periodDates.end && tEnd >= periodDates.start;
+        const tStart = periodKey(t.reporting_period_start_date);
+        const tEnd = periodKey(t.reporting_period_end_date);
+        return tStart && tEnd && tStart <= periodDates.end && tEnd >= periodDates.start;
       });
       if (matchingTarget) targetValueAtEntry = matchingTarget.target_value;
     } catch (e) {
@@ -114,17 +121,14 @@ async function processKPI(base44, kpi, results) {
       user_id: userId,
     });
     
-    const existing = existingEntries.find(e => {
-      const eStart = new Date(e.reporting_period_start_date);
-      const eEnd = new Date(e.reporting_period_end_date);
-      return eStart.toDateString() === periodDates.start.toDateString() && eEnd.toDateString() === periodDates.end.toDateString();
-    });
+    // Match on the calendar date of the period (works for old UTC-midnight values and new Toronto-offset values).
+    const existing = existingEntries.find(e => periodKey(e.reporting_period_start_date) === periodDates.start && periodKey(e.reporting_period_end_date) === periodDates.end);
 
     const entryData = {
       kpi_id: kpi.id,
       user_id: userId,
-      reporting_period_start_date: periodDates.start.toISOString(),
-      reporting_period_end_date: periodDates.end.toISOString(),
+      reporting_period_start_date: `${periodDates.start}T00:00:00${torontoOffset(periodDates.start)}`,
+      reporting_period_end_date: `${periodDates.end}T23:59:59${torontoOffset(periodDates.end)}`,
       actual_value: actualValue,
       target_value_at_entry: targetValueAtEntry,
       is_flagged: isFlagged,
@@ -145,43 +149,56 @@ async function processKPI(base44, kpi, results) {
   }
 }
 
-function getReportingPeriod(periodType) {
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
+// ---- Dates: all periods are civil dates (YYYY-MM-DD) in America/Toronto, fiscal year from CompanySettings ----
+const TZ = 'America/Toronto';
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (y, m, d) => { const t = new Date(Date.UTC(y, m - 1, d)); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; };
+const parts = (key) => key.split('-').map(Number);
 
+function torontoDateKey(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const str = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // plain date already
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+// Stored period boundaries: the calendar date is the first 10 chars (old values were UTC midnight of that date).
+const periodKey = (value) => (value ? String(value).slice(0, 10) : null);
+const torontoToday = () => torontoDateKey(new Date());
+function addDays(key, n) { const [y, m, d] = parts(key); return ymd(y, m, d + n); }
+function torontoOffset(key) {
+  const [y, m, d] = parts(key);
+  const probe = new Date(Date.UTC(y, m - 1, d, 12));
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'shortOffset' }).formatToParts(probe).find(p => p.type === 'timeZoneName')?.value || 'GMT-5';
+  const mm = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(name);
+  return mm ? `${mm[1]}${pad(mm[2])}:${mm[3] || '00'}` : '-05:00';
+}
+
+// Returns { start, end } as 'YYYY-MM-DD' (inclusive) for the period containing `dateKey`.
+function getReportingPeriod(periodType, dateKey, fiscalStartMonth = 10) {
+  const [y, m, d] = parts(dateKey);
   switch (periodType) {
     case 'daily':
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'weekly':
-      start.setDate(start.getDate() - start.getDay());
-      start.setHours(0, 0, 0, 0);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
-      break;
+      return { start: dateKey, end: dateKey };
+    case 'weekly': { // Sunday – Saturday
+      const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+      const start = ymd(y, m, d - dow);
+      return { start, end: addDays(start, 6) };
+    }
+    case 'quarterly': { // fiscal quarters (Q1 = first 3 months of the fiscal year)
+      const offset = (m - fiscalStartMonth + 12) % 12;
+      const qStartMonth = m - (offset % 3);
+      return { start: ymd(y, qStartMonth, 1), end: ymd(y, qStartMonth + 3, 0) };
+    }
+    case 'yearly': { // fiscal year
+      const fyStartYear = m >= fiscalStartMonth ? y : y - 1;
+      return { start: ymd(fyStartYear, fiscalStartMonth, 1), end: ymd(fyStartYear + 1, fiscalStartMonth, 0) };
+    }
     case 'monthly':
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(end.getMonth() + 1, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'quarterly':
-      const quarter = Math.floor(now.getMonth() / 3);
-      start.setMonth(quarter * 3, 1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(quarter * 3 + 3, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'yearly':
-      start.setMonth(0, 1);
-      start.setHours(0, 0, 0, 0);
-      end.setMonth(11, 31);
-      end.setHours(23, 59, 59, 999);
-      break;
+    default:
+      return { start: ymd(y, m, 1), end: ymd(y, m + 1, 0) };
   }
-  return { start, end };
 }
 
 function calculateAggregation(records, metricField, method) {
