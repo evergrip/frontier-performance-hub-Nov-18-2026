@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { hasPermission } from '@/lib/permissions';
 import AuditItemFixer from '../components/common/AuditItemFixer';
 import EditSaleDialog from '../components/sales/EditSaleDialog';
+import WeeklyGpForecastDialog from '@/components/sales/WeeklyGpForecastDialog';
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
 import ProjectAllocationDialog from '../components/projects/ProjectAllocationDialog';
@@ -58,6 +59,7 @@ export default function Sales() {
   const [editTargetDate, setEditTargetDate] = useState('');
   const [editSaleDialogOpen, setEditSaleDialogOpen] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
+  const [gpForecastSaleId, setGpForecastSaleId] = useState(null);
   const [preconAllocDialogOpen, setPreconAllocDialogOpen] = useState(false);
   const [allocatingSale, setAllocatingSale] = useState(null);
   const [projectAllocDialogOpen, setProjectAllocDialogOpen] = useState(false);
@@ -271,6 +273,7 @@ export default function Sales() {
         contract_value: parseFloat(construction_budget),
         linked_precon_sale_id: preconSale.id,
         assigned_to: preconSale.assigned_to,
+        estimated_margin: preconSale.estimated_margin,
         status: 'closed_won'
       });
 
@@ -295,6 +298,8 @@ export default function Sales() {
         contract_value: parseFloat(construction_budget),
         status_history: projectStatusHistory
       });
+
+      await base44.entities.GrossProfitForecast.updateMany({ precon_sale_id: preconSale.id }, { $set: { project_id: project.id } });
 
       // Link construction sale to project
       await base44.entities.Sale.update(constructionSale.id, {
@@ -615,6 +620,7 @@ export default function Sales() {
           linked_precon_sale_id: sale.id,
           assigned_to: sale.assigned_to,
           sale_contributors: sale.sale_contributors,
+          estimated_margin: sale.estimated_margin,
           status: 'closed_won'
         });
 
@@ -636,6 +642,7 @@ export default function Sales() {
           status_history: projectStatusHistory
         });
 
+        await base44.entities.GrossProfitForecast.updateMany({ precon_sale_id: sale.id }, { $set: { project_id: project.id } });
         await base44.entities.Sale.update(constructionSale.id, {
           converted_to_project_id: project.id
         });
@@ -1690,6 +1697,8 @@ export default function Sales() {
         }}
       />
 
+      {gpForecastSaleId && <WeeklyGpForecastDialog key={gpForecastSaleId} saleId={gpForecastSaleId} onClose={() => setGpForecastSaleId(null)} />}
+
       {/* Pre-Con Allocation Dialog */}
       <PreconAllocationDialog
         open={preconAllocDialogOpen}
@@ -1753,6 +1762,7 @@ export default function Sales() {
 
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2">
+                {!['closed_won', 'closed_lost'].includes(selectedSale.status) && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId(selectedSale.id); }}>Forecast weekly GP</Button>}
                 {/* Always allow editing if costs aren't finalized */}
                 {(!['closed_won', 'closed_lost'].includes(selectedSale.status) || !selectedSale.precon_costs_finalized) && (
                   <Button size="sm" variant="outline" className="text-xs" onClick={() => { setDetailDialogOpen(false); setEditingSale(selectedSale); setEditSaleDialogOpen(true); }}>
