@@ -12,6 +12,7 @@ import { format, eachMonthOfInterval, endOfMonth } from 'date-fns';
 import { projectPeriodFinancials, projectClosedDate } from '@/components/utils/projectPeriod';
 import { getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import CarryoverAllocationReview from '@/components/projects/CarryoverAllocationReview';
+import GrossProfitTargetProgress from '@/components/common/GrossProfitTargetProgress';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -197,10 +198,11 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
     if (!dateRange.start || !dateRange.end) return null;
     const year = getCurrentFiscalYear(startMonth, dateRange.start);
     if (getCurrentFiscalYear(startMonth, dateRange.end) !== year) return null;
-    const goal = fiscalGoals.find(g => Number(g.fiscal_year) === year);
-    if (!goal) return null;
+    const goal = fiscalGoals.find(g => Number(g.fiscal_year) === year) || {};
 
     return {
+      grossProfitTarget: goal.gross_profit_target,
+      grossProfitActual: companyKPIs.totalGrossProfit,
       revenueTarget: goal.revenue_target,
       revenueActual: companyKPIs.totalRevenue,
       revenuePercent: goal.revenue_target > 0 ? (companyKPIs.totalRevenue / goal.revenue_target) * 100 : 0,
@@ -399,14 +401,15 @@ export default function CompanyPerformanceReport({ dateRange, staffId }) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Target className="w-5 h-5 text-amber-500" />
-              Fiscal Goal Progress
+              Company Gross Profit Target Progress
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            <GrossProfitTargetProgress actual={goalProgress.grossProfitActual} target={goalProgress.grossProfitTarget} note="Selected-period Gross Profit against the full annual target. This report currently treats pre-construction revenue as Gross Profit because pre-construction costs are not tracked separately." />
             {goalProgress.revenueTarget > 0 && (
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium text-slate-700">Revenue Target</span>
+                  <span className="text-sm font-medium text-slate-700">Revenue Planning (Secondary)</span>
                   <span className="text-sm text-slate-600">
                     ${Math.round(goalProgress.revenueActual).toLocaleString()} / ${Math.round(goalProgress.revenueTarget).toLocaleString()}
                   </span>

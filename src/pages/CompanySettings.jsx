@@ -14,6 +14,7 @@ import MonthlyCapacitySchedule from '../components/admin/MonthlyCapacitySchedule
 import CapacityModelSettings from '../components/admin/CapacityModelSettings';
 import BrandingSettingsSection from '../components/admin/BrandingSettingsSection';
 import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
+import NextYearProfitTarget from '@/components/admin/NextYearProfitTarget';
 
 export default function CompanySettings() {
   const queryClient = useQueryClient();
@@ -85,7 +86,7 @@ export default function CompanySettings() {
   React.useEffect(() => { setSelectedFiscalYear(getCurrentFiscalYear(fiscalStartMonth)); }, [fiscalStartMonth]);
 
   React.useEffect(() => {
-    const currentGoal = fiscalGoals.find(g => g.fiscal_year === selectedFiscalYear);
+    const currentGoal = fiscalGoals.find(g => Number(g.fiscal_year) === selectedFiscalYear);
     if (currentGoal) {
       setFiscalData({
         gross_profit_target: currentGoal.gross_profit_target || '',
@@ -158,7 +159,7 @@ export default function CompanySettings() {
 
   const saveFiscalGoalsMutation = useMutation({
     mutationFn: (data) => {
-      const existingGoal = fiscalGoals.find(g => g.fiscal_year === selectedFiscalYear);
+      const existingGoal = fiscalGoals.find(g => Number(g.fiscal_year) === selectedFiscalYear);
       if (existingGoal) {
         return base44.entities.FiscalGoal.update(existingGoal.id, data);
       } else {
@@ -166,14 +167,14 @@ export default function CompanySettings() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['fiscalGoals']);
+      queryClient.invalidateQueries({ queryKey: ['fiscalGoals'] });
       toast.success('Fiscal goals saved successfully');
     }
   });
 
   const handleSaveFiscalGoals = (e) => {
     e.preventDefault();
-    saveFiscalGoalsMutation.mutate(fiscalData);
+    saveFiscalGoalsMutation.mutate(Object.fromEntries(Object.entries(fiscalData).map(([key, value]) => [key, key === 'notes' ? value : Number(value) || 0])));
   };
 
   const availableYears = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -333,10 +334,11 @@ export default function CompanySettings() {
                 placeholder="USD" 
               />
             </div>
+            <NextYearProfitTarget fiscalYear={getCurrentFiscalYear(fiscalStartMonth) + 1} fiscalStartMonth={fiscalStartMonth} fiscalGoals={fiscalGoals} />
             <div>
-              <Label>Next Year Revenue Target</Label>
+              <Label>Next Year Revenue Planning (Secondary)</Label>
               <p className="text-xs text-slate-500 mb-2">
-                Set the revenue target for next fiscal year to forecast growth capacity
+                Optional revenue assumption for build capacity only, not the company performance target. Existing revenue values are preserved separately.
               </p>
               <Input 
                 type="number" 
@@ -466,7 +468,7 @@ export default function CompanySettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            Annual Fiscal Goals
+            Company Gross Profit Target & Annual Goals
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -492,20 +494,22 @@ export default function CompanySettings() {
               <div>
                 <Label className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
-                  Gross Profit Target
+                  Company Gross Profit Target
                 </Label>
                 <Input
                   type="number"
+                  min="0"
+                  step="0.01"
                   value={fiscalData.gross_profit_target}
                   onChange={(e) => setFiscalData({...fiscalData, gross_profit_target: e.target.value})}
                   placeholder="1500000"
                 />
-                <p className="mt-1 text-xs text-slate-500">Primary annual performance target.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Primary company target for this fiscal year. Dashboard and reports measure Gross Profit attainment and the remaining gap against this amount.</p>
               </div>
               <div>
                 <Label className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
-                  Revenue Target
+                  Revenue Planning (Secondary)
                 </Label>
                 <Input
                   type="number"
@@ -591,10 +595,11 @@ export default function CompanySettings() {
               />
             </div>
 
+            {saveFiscalGoalsMutation.isError && <p role="alert" className="text-sm text-destructive">{saveFiscalGoalsMutation.error.message}</p>}
             <div className="flex justify-end pt-4">
               <Button type="submit" disabled={saveFiscalGoalsMutation.isPending}>
                 <Save className="w-4 h-4 mr-2" />
-                Save Fiscal Goals
+                {saveFiscalGoalsMutation.isPending ? 'Saving…' : 'Save Company Target & Goals'}
               </Button>
             </div>
           </form>

@@ -52,9 +52,9 @@ export default function BuildCapacityForecast({ capacityForecast, staffCapacity,
         <CardDescription>
           {capacityForecast.capacitySource === 'staff'
             ? <>Capacity from staff complement ({staffCapacity.staff.pmCount} PMs, {staffCapacity.staff.crewCount} field crew) · {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)}</>
-            : <>Based on {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} {capacityForecast.capacitySource === 'manual' ? 'manual capacity schedule' : `revenue target of $${((currentFiscalGoal?.revenue_target || 0) / 1000000).toFixed(1)}M`}</>}
+            : <>Based on {getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} {capacityForecast.capacitySource === 'manual' ? 'manual capacity schedule' : `secondary revenue planning assumption of $${((currentFiscalGoal?.revenue_target || 0) / 1000000).toFixed(1)}M`}</>}
           {capacityForecast.usingGrowthForecast && settings.next_year_revenue_target && (
-            <> · Next year: ${(settings.next_year_revenue_target / 1000000).toFixed(1)}M</>
+            <> · Next year revenue planning: ${(settings.next_year_revenue_target / 1000000).toFixed(1)}M</>
           )}
           {totalExcluded > 0 && (
             <span className="ml-2 text-amber-600">· {totalExcluded} excluded from forecast</span>
@@ -70,7 +70,7 @@ export default function BuildCapacityForecast({ capacityForecast, staffCapacity,
               ${(capacityForecast.monthlyCapacity / 1000).toFixed(0)}K
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              {capacityForecast.capacitySource === 'staff' ? 'From staff (avg. remaining FY months)' : capacityForecast.hasManualCapacity ? 'Manual override' : 'From annual target'}
+              {capacityForecast.capacitySource === 'staff' ? 'From staff (avg. remaining FY months)' : capacityForecast.hasManualCapacity ? 'Manual override' : 'From secondary revenue planning'}
               {capacityForecast.usingGrowthForecast && (
                 <> · Next: ${(capacityForecast.nextYearMonthlyCapacity / 1000).toFixed(0)}K</>
               )}

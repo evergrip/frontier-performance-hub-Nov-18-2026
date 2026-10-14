@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getFiscalYearLabel } from '../utils/fiscalYear';
 import { Link } from 'react-router-dom';
+import GrossProfitTargetProgress from '@/components/common/GrossProfitTargetProgress';
 
 export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, marginPercent, filteredProjectsCount, actualGrossProfit, fiscalYear, fiscalYearStartMonth }) {
   if (!currentFiscalGoal) return <Card><CardHeader><CardTitle>{getFiscalYearLabel(fiscalYear, fiscalYearStartMonth)} Goals</CardTitle></CardHeader><CardContent><p>No targets have been set for this fiscal year. Prior-year targets are preserved separately.</p><Link className="text-primary underline" to="/CompanySettings">Set annual goals</Link></CardContent></Card>;
@@ -16,17 +17,11 @@ export default function FiscalGoalProgress({ currentFiscalGoal, totalRevenue, ma
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {currentFiscalGoal.gross_profit_target && (
+        <GrossProfitTargetProgress actual={actualGrossProfit} target={currentFiscalGoal.gross_profit_target} note="Annual recognized construction Gross Profit, using the same calculation as the Annual Profit Forecast." />
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {currentFiscalGoal.revenue_target > 0 && (
             <div>
-              <p className="text-sm text-slate-600 mb-1">Gross Profit Target</p>
-              <p className="text-2xl font-bold text-slate-900">${(actualGrossProfit / 1000).toFixed(0)}K / ${(currentFiscalGoal.gross_profit_target / 1000).toFixed(0)}K</p>
-              <div className="w-full bg-slate-200 rounded-full h-2 mt-2"><div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${Math.min((actualGrossProfit / currentFiscalGoal.gross_profit_target) * 100, 100)}%` }} /></div>
-            </div>
-          )}
-          {currentFiscalGoal.revenue_target && (
-            <div>
-              <p className="text-sm text-slate-600 mb-1">Revenue Target</p>
+              <p className="text-sm text-slate-600 mb-1">Revenue Planning (Secondary)</p>
               <p className="text-2xl font-bold text-slate-900">
                 ${(totalRevenue / 1000).toFixed(0)}K / ${(currentFiscalGoal.revenue_target / 1000).toFixed(0)}K
               </p>
