@@ -11,6 +11,6 @@ export default function WeeklyGpSchedule({ data, offset, onOffset }) {
       <div className="max-h-60 overflow-auto"><table className="w-full text-left text-xs"><thead><tr><th className="p-2">Week date</th><th className="p-2">Forecast GP</th><th className="p-2">Remaining GP</th></tr></thead><tbody>{data.rows.map(row => <tr key={row.date} className="border-t border-border"><td className="p-2">{row.date}</td><td className="p-2">{money(row.amount)}</td><td className="p-2">{money(row.remaining)}</td></tr>)}</tbody></table></div>
       <div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={!offset} onClick={() => onOffset(Math.max(0, offset - 50))}>Previous weeks</Button><Button type="button" size="sm" variant="outline" disabled={!data.hasMore} onClick={() => onOffset(offset + 50)}>Next weeks</Button></div>
     </>}
-    <p className="text-xs text-muted-foreground">Saved forecasts retain this weekly rate across fiscal years and construction conversion. They are excluded when the job is lost or finalized without construction. These amounts affect forecast GP only, never reported GP.</p>
+    <p className="text-xs text-muted-foreground">Saving uses the latest pre-con construction-budget × estimated-margin GP, and the start-year annual goal. Saved forecasts retain this weekly rate and total GP across fiscal years and construction conversion; save again to regenerate the schedule. They are excluded when the job is lost or finalized without construction. These amounts affect forecast GP only, never reported GP.</p>
   </div>;
 }

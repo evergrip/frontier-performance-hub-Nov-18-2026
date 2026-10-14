@@ -126,6 +126,8 @@ export default function Sales() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['sales']);
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
       setAdvanceDialogOpen(false);
       setConstructionBudget('');
       setTargetCompletionDate('');
@@ -219,6 +221,8 @@ export default function Sales() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['sales']);
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
       setClosePreconDialogOpen(false);
       setFinalPreconValue('');
       toast.success('Pre-construction finalized');
@@ -317,6 +321,8 @@ export default function Sales() {
     onSuccess: () => {
       queryClient.invalidateQueries(['sales']);
       queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
       setConstructionDialogOpen(false);
       setConstructionForm({ final_precon_value: '', construction_budget: '' });
       toast.success('Converted to construction project');
@@ -575,6 +581,8 @@ export default function Sales() {
     onSuccess: () => {
       queryClient.invalidateQueries(['sales']);
       queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
       setSendBackToLeadsDialogOpen(false);
       setSendBackLeadPhase('');
       toast.success('Sent back to leads');
@@ -657,6 +665,8 @@ export default function Sales() {
     onSuccess: () => {
       queryClient.invalidateQueries(['sales']);
       queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
       setReopenPreconDialogOpen(false);
       setReopenAction('reopen');
       setConstructionForm({ final_precon_value: '', construction_budget: '' });

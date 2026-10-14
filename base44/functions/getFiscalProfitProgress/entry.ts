@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { allocationIssues, periodOf } from '../../shared/verificationMath.ts';
 import { projectProfitMonths, contributionForQuarter } from '../../shared/quarterProfitMath.ts';
+import { fiscalWeeklyForecasts } from '../../shared/fiscalWeeklyForecasts.ts';
 
 export default async function(req) {
   try {
@@ -46,6 +47,7 @@ export default async function(req) {
       const date = new Date(text);
       return Number.isNaN(date.getTime()) ? null : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
     };
+    const weeklyForecast = await fiscalWeeklyForecasts(base44, user, start, end);
     do {
       const page = await base44.entities.Project.filter(query, { limit: 100, cursor, fields: ['title', 'sale_id', 'contract_value', 'actual_costs', 'actual_margin', 'include_in_forecast', 'monthly_revenue_allocations', 'status', 'status_history', 'start_date', 'actual_completion_date', 'created_date'] });
       const linkedIds = [...new Set(page.items.filter(project => project.status !== 'closed' && project.include_in_forecast !== false && (project.actual_margin == null || project.actual_margin === '')).map(project => project.sale_id).filter(Boolean))];
@@ -69,6 +71,7 @@ export default async function(req) {
         if (!Number.isFinite(revenue) || !Number.isFinite(costs)) { excludedProjects++; continue; }
         const profitMonths = projectProfitMonths(project, salesById[project.sale_id], allocations, currentPeriod).filter(row => byPeriod[row.period]);
         for (const row of profitMonths) {
+          if (weeklyForecast.overriddenProjectIds.has(project.id)) { row.forecastGrossProfit = 0; row.forecastMissing = false; row.forecastBasis = 'Weekly GP schedule (shown separately)'; }
           const month = byPeriod[row.period];
           month.revenue += row.revenue;
           month.costs += row.costs;
@@ -83,6 +86,13 @@ export default async function(req) {
       }
       cursor = page.has_more ? page.next_cursor : null;
     } while (cursor);
+    for (const entry of weeklyForecast.rows) {
+      for (const week of entry.weeks) byPeriod[week.date.slice(0, 7)].forecastGrossProfit += week.amount;
+      if (requestedQuarter) {
+        const weeks = entry.weeks.filter(week => week.date.slice(0, 7) >= detailStart && week.date.slice(0, 7) <= detailEnd);
+        if (weeks.length) contributions.push({ id: `forecast-${entry.forecast.id}`, forecastId: entry.forecast.id, kind: 'weekly_forecast', title: entry.forecast.title, phase: entry.phase, totalGP: entry.forecast.total_gp, weeklyGP: entry.forecast.weekly_gp, probableStartDate: entry.forecast.probable_start_date, grossProfit: 0, forecastGrossProfit: weeks.reduce((sum, week) => sum + week.amount, 0), weeks });
+      }
+    }
     const total = rows => rows.reduce((sum, month) => ({ revenue: sum.revenue + month.revenue, costs: sum.costs + month.costs, grossProfit: sum.grossProfit + month.grossProfit }), { revenue: 0, costs: 0, grossProfit: 0 });
     const quarters = Array.from({ length: 4 }, (_, index) => {
       const rows = months.slice(index * 3, index * 3 + 3);

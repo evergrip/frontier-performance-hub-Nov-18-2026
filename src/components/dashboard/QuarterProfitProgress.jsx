@@ -15,7 +15,7 @@ export default function QuarterProfitProgress({ quarter, onOpen }) {
     <p className="text-xs text-primary">Click GP to view and edit contributions</p>
     <p className="text-xs text-muted-foreground">Allocated revenue {money(quarter.revenue)} − costs {money(quarter.costs)}</p>
     <div className="space-y-1 border-t border-border pt-3">
-      <p className="text-xs text-muted-foreground">Full-quarter forecast GP · scheduled projects</p>
+      <p className="text-xs text-muted-foreground">Full-quarter forecast GP · construction + pre-con</p>
       <p className="text-lg font-semibold text-foreground">{money(quarter.forecastGrossProfit)}</p>
       <p className={`text-xs font-medium ${quarter.forecastMissingMargins > 0 || (quarter.target > 0 && quarter.forecastGrossProfit < quarter.target) ? 'text-destructive' : 'text-muted-foreground'}`}>{quarter.forecastMissingMargins > 0 ? `Forecast incomplete: ${quarter.forecastMissingMargins} missing margin(s)` : quarter.target > 0 ? quarter.forecastGrossProfit >= quarter.target ? `On track · ${money(quarter.forecastGrossProfit - quarter.target)} above target` : `Off track · ${money(quarter.target - quarter.forecastGrossProfit)} short of target` : 'Set annual GP target to assess tracking'}</p>
     </div>
