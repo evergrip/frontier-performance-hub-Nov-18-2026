@@ -18,7 +18,7 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
     inHouseLoad = 0,
   } = capacityForecast;
   const convRatePct = (preconConversionRate * 100).toFixed(0);
-  const isDefaultRate = totalClosedPrecon < 3;
+  
 
   const totalInHouse = activeInHouse + preconInHouse;
   const totalSub = activeSub + preconSub;
@@ -99,14 +99,13 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
               ${(capacityForecast.preconPipelineValue / 1000).toFixed(0)}K
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Adjusted at <span className="font-semibold text-emerald-700">{convRatePct}%</span> conversion
-              {isDefaultRate
-                ? <span className="text-amber-500"> (default — need 3+ closed precon)</span>
-                : <> ({convertedToConstruction}/{totalClosedPrecon} converted to construction)</>
+              Stage-weighted{capacityForecast.conversionHasHistory
+                ? <> · {convRatePct}% company conversion ({convertedToConstruction}/{totalClosedPrecon}, trailing 24 mo)</>
+                : <span className="text-amber-500"> (default stage probabilities — need 5+ decided precon in 24 mo)</span>
               }
             </p>
             {capacityForecast.preconPipelineValueRaw && capacityForecast.preconPipelineValueRaw !== capacityForecast.preconPipelineValue && (
-              <p className="text-[10px] text-slate-400 mt-0.5">Raw pipeline: ${(capacityForecast.preconPipelineValueRaw / 1000).toFixed(0)}K before conversion</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Raw pipeline: ${(capacityForecast.preconPipelineValueRaw / 1000).toFixed(0)}K before weighting · This FY: ${((capacityForecast.thisFY?.total || 0) / 1000).toFixed(0)}K · Beyond FY: ${((capacityForecast.beyondFY?.total || 0) / 1000).toFixed(0)}K</p>
             )}
             {(preconInHouse > 0 || preconSub > 0) && (
               <div className="flex flex-wrap gap-1 mt-2">
@@ -128,7 +127,7 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
               </div>
               <div className="border-t border-slate-200 pt-2">
                 <p className="text-lg font-bold text-slate-600">{capacityForecast.monthsOfBacklog.toFixed(1)} <span className="text-xs font-medium text-slate-400">mo</span></p>
-                <p className="text-[10px] text-emerald-700 font-semibold uppercase tracking-wide">+ Pipeline at {convRatePct}% conversion</p>
+                <p className="text-[10px] text-emerald-700 font-semibold uppercase tracking-wide">+ Stage-weighted pipeline</p>
                 <p className="text-[10px] text-slate-500">In-house load only · subs excluded</p>
               </div>
             </div>
@@ -142,7 +141,7 @@ export default function BuildCapacityForecast({ capacityForecast, currentFiscalG
             <span className="mx-2">•</span>
             <strong>In-House Load:</strong> ${(inHouseLoad / 1000).toFixed(0)}K
             <span className="mx-2">•</span>
-            Conversion: <strong>{convRatePct}%</strong>{isDefaultRate ? ' (default)' : ` (${convertedToConstruction}/${totalClosedPrecon})`}
+            Conversion: <strong>{capacityForecast.conversionHasHistory ? `${convRatePct}%` : 'stage defaults'}</strong>{capacityForecast.conversionHasHistory ? ` (${convertedToConstruction}/${totalClosedPrecon})` : ''}
           </p>
           <p className="text-sm text-blue-900 mt-1">
             Booked in-house: <strong>{Math.ceil(bookedBacklog)} months</strong>
