@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Building2, Save, TrendingUp, DollarSign, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import MonthlyCapacitySchedule from '../components/admin/MonthlyCapacitySchedule';
+import CapacityModelSettings from '../components/admin/CapacityModelSettings';
 import BrandingSettingsSection from '../components/admin/BrandingSettingsSection';
 import { getCurrentFiscalYear, getFiscalYearLabel } from '@/components/utils/fiscalYear';
 
@@ -396,6 +397,20 @@ export default function CompanySettings() {
               }}
             />
           </div>
+          <div className="flex items-center justify-between py-2 border-t border-slate-100">
+            <div>
+              <Label className="text-sm font-medium">KPIs</Label>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Show KPI pages (My Performance, KPI Dashboard, KPI Definitions, KPI chat) and run the nightly KPI calculation. Off by default; turning off keeps all KPI data.
+              </p>
+            </div>
+            <Switch
+              checked={settings[0]?.kpis_enabled === true}
+              onCheckedChange={(checked) => {
+                saveSettingsMutation.mutate({ kpis_enabled: checked });
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -435,6 +450,11 @@ export default function CompanySettings() {
           </div>
         </CardContent>
       </Card>
+
+      <CapacityModelSettings
+        settings={settings[0] || {}}
+        onSave={(data) => saveSettingsMutation.mutate(data)}
+      />
 
       <MonthlyCapacitySchedule
         settings={settings[0] || {}}
