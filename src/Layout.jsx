@@ -81,7 +81,7 @@ export default function Layout({ children, currentPageName }) {
       items: [
         ...(schedulerEnabled ? [{ name: 'Scheduler', icon: CalendarDays, page: 'Scheduler' }] : []),
         { name: 'Budgets', icon: Wallet, page: 'Budgets' },
-        { name: 'Meetings', icon: MessageSquare, page: 'Meetings' },
+
       ]
     },
     {

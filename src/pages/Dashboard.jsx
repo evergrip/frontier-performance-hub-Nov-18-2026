@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { DollarSign, Target, Briefcase, Building2, TrendingUp, Settings2, CheckCircle2, Activity } from 'lucide-react';
 import StatCard from '../components/common/StatCard';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,9 @@ import FiscalGoalProgress from '../components/dashboard/FiscalGoalProgress';
 import FiscalProfitProgress from '@/components/dashboard/FiscalProfitProgress';
 import RevenueTrendChart from '../components/dashboard/RevenueTrendChart';
 import CustomizeMetricsDialog from '../components/dashboard/CustomizeMetricsDialog';
-import MyMeetingsDashboard from '../components/dashboard/MyMeetingsDashboard';
+
 import GettingStartedChecklist from '../components/dashboard/GettingStartedChecklist';
-import MeetingReminderPopup from '../components/meetings/MeetingReminderPopup';
+
 import CEOGrossMarginDialog from '../components/dashboard/CEOGrossMarginDialog';
 import ProjectTypeExportButton from '../components/dashboard/ProjectTypeExportButton';
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
@@ -76,11 +76,7 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: allMeetings = [] } = useQuery({
-    queryKey: ['meetings'],
-    queryFn: () => base44.entities.Meeting.list('-created_date'),
-    staleTime: 60 * 1000,
-  });
+
 
   const { data: allUsers = [] } = useQuery({
     queryKey: ['users'],
@@ -97,16 +93,7 @@ export default function Dashboard() {
   const { data: unavailability = [] } = useQuery({ queryKey: ['employee-unavailability'], queryFn: () => base44.entities.EmployeeUnavailability.list(), enabled: isAdminUser, staleTime: 5 * 60 * 1000 });
   const { data: holidays = [] } = useQuery({ queryKey: ['holidays'], queryFn: () => base44.entities.Holiday.list(), enabled: isAdminUser, staleTime: 5 * 60 * 1000 });
 
-  // Filter meetings for privacy
-  const visibleMeetings = allMeetings.filter(m => {
-    if (!m.is_private) return true;
-    if (!user) return false;
-    if (user.role === 'admin') return true;
-    if (m.organizer_id === user.id) return true;
-    if ((m.attendees || []).includes(user.id)) return true;
-    if ((m.visible_to_user_ids || []).includes(user.id)) return true;
-    return false;
-  });
+
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
@@ -138,23 +125,9 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const queryClient = useQueryClient();
   const isLoading = settingsLoading || leadsLoading || salesLoading || projectsLoading;
 
-  const handleUpdateActionItem = async (meetingId, actionIndex, markComplete, alreadySaved = false) => {
-    if (!alreadySaved) {
-      const meeting = allMeetings.find(m => m.id === meetingId);
-      if (!meeting) return;
-      const items = [...(meeting.action_items || [])];
-      items[actionIndex] = {
-        ...items[actionIndex],
-        is_completed: markComplete,
-        completed_date: markComplete ? new Date().toISOString().split('T')[0] : null,
-      };
-      await base44.entities.Meeting.update(meetingId, { action_items: items });
-    }
-    queryClient.invalidateQueries({ queryKey: ['meetings'] });
-  };
+
 
   const settings = companySettings[0] || {};
   const fiscalYearStartMonth = settings.fiscal_year_start_month || 10;
@@ -466,21 +439,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Meeting Reminders */}
-      {user && (
-        <MeetingReminderPopup
-          meetings={visibleMeetings}
-          currentUser={user}
-          onMarkComplete={(meeting) => {
-            base44.entities.Meeting.update(meeting.id, { status: 'completed' });
-            queryClient.invalidateQueries({ queryKey: ['meetings'] });
-          }}
-          onStartMeeting={(meeting) => {
-            base44.entities.Meeting.update(meeting.id, { status: 'in_progress', actual_start_time: new Date().toISOString() });
-            queryClient.invalidateQueries({ queryKey: ['meetings'] });
-          }}
-        />
-      )}
+
 
       {/* Getting Started Checklist - for new companies */}
       <GettingStartedChecklist
@@ -493,13 +452,7 @@ export default function Dashboard() {
         isAdmin={user?.role === 'admin'}
       />
 
-      {/* Meetings & Action Items - Top of Dashboard */}
-      <MyMeetingsDashboard
-        meetings={visibleMeetings}
-        users={allUsers}
-        currentUser={user}
-        onUpdateActionItem={handleUpdateActionItem}
-      />
+
 
       {/* Date Range Selector */}
       <DateRangeSelector
