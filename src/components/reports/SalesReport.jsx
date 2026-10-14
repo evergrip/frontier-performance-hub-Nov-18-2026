@@ -10,6 +10,7 @@ import { TrendingUp, TrendingDown, Minus, DollarSign } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Bar, ComposedChart } from 'recharts';
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, eachQuarterOfInterval, startOfQuarter, endOfQuarter } from 'date-fns';
 import QualifiedLeadsBySourceReport from './QualifiedLeadsBySourceReport';
+import { parseLocalDate, getCurrentFiscalQuarter, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import SalesByMonthReport from './SalesByMonthReport';
 
 export default function SalesReport({ dateRange, staffId }) {
@@ -139,13 +140,13 @@ export default function SalesReport({ dateRange, staffId }) {
 
       if (sale.status === 'closed_won' || sale.converted_to_project_id || conSale) {
         bySalesperson[salesPersonId].closedWon++;
-        // Use actual costs from closed project, otherwise construction sale contract_value, otherwise precon estimated budget
+        // Sales volume = contract value (revenue), never actual_costs: project contract, else construction sale contract, else precon estimate.
         let volume = sale.estimated_construction_budget || 0;
         if (conSale) {
           volume = conSale.contract_value || volume;
         }
-        if (linkedProject && linkedProject.status === 'closed' && linkedProject.actual_costs) {
-          volume = linkedProject.actual_costs;
+        if (linkedProject && Number(linkedProject.contract_value) > 0) {
+          volume = Number(linkedProject.contract_value);
         }
         bySalesperson[salesPersonId].wonVolume += volume;
         bySalesperson[salesPersonId].totalVolume += volume;
@@ -173,10 +174,10 @@ export default function SalesReport({ dateRange, staffId }) {
     const history = sale.phase_history || [];
     if (sale.status === 'closed_won' || sale.status === 'closed_lost') {
       const closedEntry = [...history].reverse().find(h => h.status === sale.status);
-      if (closedEntry?.entered_date) return new Date(closedEntry.entered_date);
+      if (closedEntry?.entered_date) return parseLocalDate(closedEntry.entered_date);
     }
     // Fall back to close_date, then the last phase_history entry, then updated_date
-    if (sale.close_date) return new Date(sale.close_date);
+    if (sale.close_date) return parseLocalDate(sale.close_date);
     if (history.length > 0) return new Date(history[history.length - 1].entered_date);
     return new Date(sale.updated_date || sale.created_date);
   };
@@ -294,17 +295,15 @@ export default function SalesReport({ dateRange, staffId }) {
       });
       const constructionVolume = periodConstructionProjects
         .reduce((sum, proj) => {
-          if (proj.status === 'closed' && proj.actual_costs) {
-            return sum + proj.actual_costs;
-          }
-          return sum + (proj.contract_value || 0);
+          // Contract value (revenue), not actual_costs.
+          return sum + (Number(proj.contract_value) || 0);
         }, 0);
       const salesVolume = preconVolume + constructionVolume;
 
       return {
         period: trendPeriod === 'monthly' 
           ? format(intervalStart, 'MMM yyyy')
-          : `Q${Math.floor(intervalStart.getMonth() / 3) + 1} ${format(intervalStart, 'yyyy')}`,
+          : `Q${getCurrentFiscalQuarter(10, intervalStart)} FY${String(getCurrentFiscalYear(10, intervalStart) + 1).slice(-2)}`,
         preconWinRate: parseFloat(preconWinRate.toFixed(1)),
         winRateAfterProposal: parseFloat(winRateAfterProposal.toFixed(1)),
         constructionWinRate: parseFloat(constructionWinRate.toFixed(1)),
@@ -337,20 +336,14 @@ export default function SalesReport({ dateRange, staffId }) {
       return effectiveDate >= dateRange.start && effectiveDate <= dateRange.end;
     });
 
+    // Closed-won only; dated by the closed_won entry in phase_history (getSaleEffectiveDate).
     const preconTotal = filteredSales
-      .filter(s => s.sale_type === 'preconstruction')
+      .filter(s => s.sale_type === 'preconstruction' && s.status === 'closed_won')
       .reduce((sum, s) => sum + (s.contract_value || 0), 0);
     
     const constructionTotal = filteredSales
-      .filter(s => s.sale_type === 'construction')
-      .reduce((sum, s) => {
-        // Use actual costs from closed project if available
-        const linkedProject = projects.find(p => p.sale_id === s.id);
-        if (linkedProject && linkedProject.status === 'closed' && linkedProject.actual_costs) {
-          return sum + linkedProject.actual_costs;
-        }
-        return sum + (s.contract_value || 0);
-      }, 0);
+      .filter(s => s.sale_type === 'construction' && s.status === 'closed_won')
+      .reduce((sum, s) => sum + (Number(s.contract_value) || 0), 0);
 
     return {
       preconTotal,
