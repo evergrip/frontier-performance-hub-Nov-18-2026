@@ -13,6 +13,7 @@ import { Target, TrendingUp, AlertTriangle, Users, RefreshCw, Loader2, MessageSq
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { toast } from 'sonner';
+import { periodStartDate, periodEndDate } from '@/components/utils/fiscalYear';
 
 export default function KPIDashboard() {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -81,9 +82,10 @@ export default function KPIDashboard() {
   const periodStart = startOfMonth(viewMonth);
   const periodEnd = endOfMonth(viewMonth);
   const currentPeriodEntries = allEntries.filter(entry => {
-    const start = new Date(entry.reporting_period_start_date);
-    const end = new Date(entry.reporting_period_end_date);
-    return start <= periodEnd && end >= periodStart;
+    // Period boundaries compared as local calendar dates (old entries were stored as UTC midnight).
+    const start = periodStartDate(entry.reporting_period_start_date);
+    const end = periodEndDate(entry.reporting_period_end_date);
+    return start && end && start <= periodEnd && end >= periodStart;
   });
 
   // Filter by category
@@ -118,7 +120,7 @@ export default function KPIDashboard() {
     const date = subMonths(new Date(), i);
     const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
     const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-    const monthEntries = allEntries.filter(e => { const s = new Date(e.reporting_period_start_date); return s >= monthStart && s <= monthEnd; });
+    const monthEntries = allEntries.filter(e => { const s = periodStartDate(e.reporting_period_start_date); return s && s >= monthStart && s <= monthEnd; });
     const avg = monthEntries.length > 0 ? monthEntries.reduce((s, e) => s + (e.target_value_at_entry > 0 ? (e.actual_value / e.target_value_at_entry) * 100 : 0), 0) / monthEntries.length : 0;
     trendData.push({
       month: format(date, 'MMM'),
@@ -321,7 +323,7 @@ export default function KPIDashboard() {
                             <Badge variant="destructive" className="text-[10px]">Flagged</Badge>
                           </div>
                           <p className="text-xs text-slate-500">
-                            {getUserName(entry.user_id)} • {format(new Date(entry.reporting_period_start_date), 'MMM d')} – {format(new Date(entry.reporting_period_end_date), 'MMM d, yyyy')}
+                            {getUserName(entry.user_id)} • {format(periodStartDate(entry.reporting_period_start_date), 'MMM d')} – {format(periodStartDate(entry.reporting_period_end_date), 'MMM d, yyyy')}
                           </p>
                           <div className="mt-2 flex items-center gap-4 text-sm">
                             <span>Actual: <strong className="text-red-600">{entry.actual_value}</strong></span>
