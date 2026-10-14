@@ -11,7 +11,7 @@ import { allocationDate } from '@/components/utils/projectPeriod';
 import SubAllocationDialog from './SubAllocationDialog';
 import InvalidAllocationRows from '@/components/projects/InvalidAllocationRows';
 
-export default function ProjectAllocationDialog({ open, onOpenChange, project, companySettings }) {
+export default function ProjectAllocationDialog({ open, onOpenChange, project, companySettings, onSaved }) {
   const queryClient = useQueryClient();
   const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
 
@@ -86,6 +86,7 @@ export default function ProjectAllocationDialog({ open, onOpenChange, project, c
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       onOpenChange(false);
       toast.success('Revenue allocations saved');
+      onSaved?.();
     }
   });
 
