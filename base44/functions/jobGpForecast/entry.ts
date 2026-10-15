@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { effectiveSchedule, dateTime, WEEK } from '../../shared/weeklyGpForecast.ts';
 import { resolveGpJob, legacyOverrides, syncGpTiming, OPEN_PRECON } from '../../shared/gpAllocationJob.ts';
+import { allocationIssues } from '../../shared/verificationMath.ts';
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req), user = await base44.auth.me();
@@ -29,6 +30,9 @@ export default async function(req) {
     const forecast = { job_key: job.key, precon_sale_id: job.precon?.id || '', project_id: job.project?.id || '', title: job.title, probable_start_date: start, total_gp: budget, annual_gp_goal: existing?.annual_gp_goal ?? target, goal_fiscal_year: existing?.goal_fiscal_year ?? goalYear, weekly_gp: existing?.weekly_gp ?? (job.project?.status === 'closed' ? 0 : target / 52), weekly_overrides: [...byDate].map(([date, amount]) => ({ date, amount })).sort((a, b) => a.date.localeCompare(b.date)), revision: (existing?.revision || 0) + 1 };
     const info = start ? effectiveSchedule(forecast) : { rows: [], weeks: 0, allocatedGP: 0, unallocatedGP: budget };
     if (action === 'validateCloseout') {
+      if (!Number.isFinite(Number(input.finalTotalGP))) throw new Error('Enter valid final GP dollars.');
+      const timing = job.project?.monthly_revenue_allocations || [];
+      if (Number(input.finalTotalGP) <= 0 && timing.length && !allocationIssues(timing).length && Math.abs(timing.reduce((sum, row) => sum + Number(row.percentage), 0) - 100) < 0.1) return Response.json({ ok: true, finalGP: Number(input.finalTotalGP) });
       if (!existing) throw new Error('Save the GP dollar schedule before closing this job.');
       if (Math.abs(existing.total_gp - Number(input.finalTotalGP)) > 0.01 || Math.abs(info.unallocatedGP) > 0.01) throw new Error('Reconcile the saved GP dollar budget and weekly allocations to the final contract less costs before closeout.');
       return Response.json({ ok: true });

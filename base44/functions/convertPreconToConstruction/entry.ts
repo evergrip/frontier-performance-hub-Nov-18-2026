@@ -7,6 +7,8 @@ export default async function(req) {
     const { saleId, constructionBudget, finalPreconValue } = await req.json();
     if (!saleId || !Number.isFinite(Number(constructionBudget)) || Number(constructionBudget) <= 0) throw new Error('Enter a positive construction contract value.');
     const precon = await base44.entities.Sale.get(saleId);
+    const finalValue = finalPreconValue == null ? precon?.contract_value : Number(finalPreconValue);
+    if (!Number.isFinite(Number(finalValue)) || Number(finalValue) < 0) throw new Error('Enter a valid final pre-con value.');
     if (!precon || precon.sale_type !== 'preconstruction' || !['pending_construction_sale', 'closed_won'].includes(precon.status)) throw new Error('This pre-con job is not ready for construction.');
     const candidates = await base44.entities.Sale.filter({ linked_precon_sale_id: saleId, sale_type: 'construction' }, { sort: 'created_date', limit: 2 });
     if (candidates.items.length > 1) throw new Error('Multiple construction sales already exist; resolve this job’s links before converting.');
@@ -19,8 +21,6 @@ export default async function(req) {
     await base44.entities.Sale.update(constructionSale.id, { converted_to_project_id: project.id });
     const job = await resolveGpJob(base44, { projectId: project.id });
     if (job.existing) { const forecast = await base44.entities.GrossProfitForecast.update(job.existing.id, { job_key: job.key, project_id: project.id }); await syncGpTiming(base44, job, forecast); }
-    const finalValue = finalPreconValue == null ? precon.contract_value : Number(finalPreconValue);
-    if (!Number.isFinite(Number(finalValue)) || Number(finalValue) < 0) throw new Error('Enter a valid final pre-con value.');
     const phase_history = precon.status === 'closed_won' ? precon.phase_history || [] : [...(precon.phase_history || []), { status: 'closed_won', entered_date: new Date().toISOString(), source: 'sale' }];
     await base44.entities.Sale.update(precon.id, { status: 'closed_won', contract_value: Number(finalValue), phase_history, converted_to_project_id: project.id });
     if (finalPreconValue != null) await base44.functions.invoke('processCommission', { sale_id: precon.id, sale_type: 'preconstruction', final_amount: finalValue, is_update: true });

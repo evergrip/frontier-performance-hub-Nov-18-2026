@@ -22,7 +22,7 @@ export default function QuarterProfitBreakdown({ fiscalYear, quarter, userId, on
     }, getNextPageParam: last => last.details.next_cursor ?? undefined,
   });
   const projectQuery = useQuery({ queryKey: ['quarterProfitProject', editing?.id], queryFn: () => base44.entities.Project.get(editing.id), enabled: !!editing && editing.mode !== 'weekly' });
-  const refresh = () => { ['projects', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'quarterProfitProject', 'edit-logs'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] })); };
+  const refresh = () => { ['projects', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'quarterProfitProject', 'edit-logs', 'gpForecastTable', 'weeklyGpForecast'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] })); };
   const summary = data?.pages[0]?.quarters.find(item => item.quarter === quarter.quarter) || quarter;
   return <>
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}><DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

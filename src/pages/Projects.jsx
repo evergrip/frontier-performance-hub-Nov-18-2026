@@ -24,6 +24,7 @@ import EditProjectDetailDialog from '../components/projects/EditProjectDetailDia
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
 import GpAllocationLauncher from '@/components/projects/GpAllocationLauncher';
+import ProjectCloseoutSummary from '@/components/projects/ProjectCloseoutSummary';
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import { allocationDate } from '@/components/utils/projectPeriod';
@@ -276,10 +277,6 @@ export default function Projects() {
     const nextStatus = getNextStatus(selectedProject.status);
     if (!nextStatus) return;
 
-    if (false && nextStatus === 'mobilization' && (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || monthlyAllocations.reduce((s, a) => s + Number(a.percentage), 0) > 100.1)) {
-      toast.error('Correct the monthly allocation schedule before advancing this project. Total shares across all years cannot exceed 100%.');
-      return;
-    }
 
     // Require project manager when advancing to mobilization
     if (nextStatus === 'mobilization' && !projectForm.project_manager_id) {
@@ -442,7 +439,7 @@ export default function Projects() {
       updates.color = generateRandomColor();
     }
     
-    // Wipe allocations when moving back to awaiting_to_be_scheduled
+    // Moving backward preserves the GP dollar schedule.
     if (newStatus === 'awaiting_to_be_scheduled') {
       // GP timing survives phase changes; only staffing assignments are reset.
       updates.monthly_work_allocations = [];
@@ -501,7 +498,8 @@ export default function Projects() {
       await base44.entities.Sale.update(preconSale.id, {
         status: targetPhase,
         phase_history: preconHistory,
-        commission_processed: false
+        commission_processed: false,
+        converted_to_project_id: ''
       });
 
       // Return the same GP dollar schedule to pre-construction before deleting its project.
@@ -799,6 +797,7 @@ export default function Projects() {
 
       {/* Construction Forecast */}
       <ConstructionForecast
+        assignedUserId={isAdmin && filterSalesperson !== 'all' ? filterSalesperson : undefined}
         projects={filteredProjects}
         clients={clients}
         sales={sales}
@@ -1200,46 +1199,7 @@ export default function Projects() {
 
             {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} label="Reconcile final GP dollar allocations" />}
 
-            {selectedProject && projectForm.actual_costs && projectForm.actual_margin && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                <h4 className="text-xs font-semibold text-slate-700 mb-2">Final Project Summary</h4>
-                <div className="text-xs text-slate-700 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Original Contract Value:</span>
-                    <span className="font-semibold">${((selectedProject.contract_value || 0) / 1000).toFixed(0)}k</span>
-                  </div>
-                  <div className="flex justify-between">
-                   <span>Actual Project Costs:</span>
-                   <span className="font-semibold">${(parseFloat(projectForm.actual_costs) / 1000).toFixed(0)}k</span>
-                  </div>
-                  <div className="flex justify-between">
-                   <span>Contract Revenue:</span>
-                   <span className="font-semibold">${((selectedProject.contract_value || 0) / 1000).toFixed(0)}k</span>
-                   </div>
-                   <div className="flex justify-between border-t border-emerald-300 pt-1 mt-1">
-                   <span className="font-bold">Gross Profit:</span>
-                   <span className="font-bold text-emerald-700">
-                     ${(((selectedProject.contract_value || 0) - parseFloat(projectForm.actual_costs)) / 1000).toFixed(0)}k
-                   </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-bold">Margin:</span>
-                    <span className="font-bold text-emerald-700">{parseFloat(projectForm.actual_margin).toFixed(2)}%</span>
-                  </div>
-                  {(() => {
-                    const actualCosts = parseFloat(projectForm.actual_costs) || 0;
-                    const variance = Math.abs(((actualCosts - selectedProject.contract_value) / selectedProject.contract_value) * 100);
-                    const threshold = companySettings?.project_closeout_variance_threshold || 3;
-                    return variance > threshold ? (
-                      <div className="flex justify-between text-amber-600 border-t border-amber-300 pt-1 mt-1">
-                        <span className="font-bold">Variance:</span>
-                        <span className="font-bold">{variance.toFixed(2)}% (exceeds {threshold}%)</span>
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-              </div>
-            )}
+            {selectedProject && projectForm.actual_costs && projectForm.actual_margin && <ProjectCloseoutSummary project={selectedProject} form={projectForm} threshold={companySettings?.project_closeout_variance_threshold || 3} />}
 
             <div className="flex gap-2 justify-end pt-4">
               <Button type="button" variant="outline" onClick={() => setCloseoutDialogOpen(false)}>

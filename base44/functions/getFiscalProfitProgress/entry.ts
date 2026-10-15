@@ -8,7 +8,8 @@ export default async function(req) {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    const { fiscalYear, quarter, detailCursor, detailYear = false } = await req.json();
+    const { fiscalYear, quarter, detailCursor, detailYear = false, assignedUserId } = await req.json();
+    const scopeUser = user.role === 'admin' && assignedUserId ? { id: String(assignedUserId), role: 'user' } : user;
     const requestedQuarter = detailYear ? 1 : quarter == null ? null : Number(quarter);
     const offset = detailCursor == null ? 0 : Number(detailCursor);
     if ((requestedQuarter !== null && (!Number.isInteger(requestedQuarter) || requestedQuarter < 1 || requestedQuarter > 4)) || !Number.isInteger(offset) || offset < 0) return Response.json({ error: 'Invalid quarter or cursor' }, { status: 400 });
@@ -30,15 +31,15 @@ export default async function(req) {
     const goalPage = await base44.entities.FiscalGoal.filter({ fiscal_year: year }, { limit: 1, fields: ['gross_profit_target'] });
     const target = Number(goalPage.items[0]?.gross_profit_target) || 0;
     const saleIds = [];
-    if (user.role !== 'admin') {
+    if (scopeUser.role !== 'admin') {
       let cursor;
       do {
-        const page = await base44.entities.Sale.filter({ $or: [{ assigned_to: user.id }, { 'sale_contributors.user_id': user.id }] }, { limit: 100, fields: ['id'], cursor });
+        const page = await base44.entities.Sale.filter({ $or: [{ assigned_to: scopeUser.id }, { 'sale_contributors.user_id': scopeUser.id }] }, { limit: 100, fields: ['id'], cursor });
         saleIds.push(...page.items.map(sale => sale.id));
         cursor = page.has_more ? page.next_cursor : null;
       } while (cursor);
     }
-    const query = user.role === 'admin' ? { project_type: 'construction' } : { project_type: 'construction', $or: [{ project_manager_id: user.id }, { sale_id: { $in: saleIds } }] };
+    const query = scopeUser.role === 'admin' ? { project_type: 'construction' } : { project_type: 'construction', $or: [{ project_manager_id: scopeUser.id }, { sale_id: { $in: saleIds } }] };
     let cursor, excludedProjects = 0, incompleteProjects = 0;
     const dateKey = value => {
       if (!value) return null;
@@ -47,7 +48,7 @@ export default async function(req) {
       const date = new Date(text);
       return Number.isNaN(date.getTime()) ? null : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
     };
-    const weeklyForecast = await fiscalWeeklyForecasts(base44, user, start, end);
+    const weeklyForecast = await fiscalWeeklyForecasts(base44, scopeUser, start, end);
     do {
       const page = await base44.entities.Project.filter(query, { limit: 100, cursor, fields: ['title', 'sale_id', 'contract_value', 'actual_costs', 'actual_margin', 'include_in_forecast', 'monthly_revenue_allocations', 'status', 'status_history', 'start_date', 'actual_completion_date', 'created_date'] });
       const linkedIds = [...new Set(page.items.filter(project => project.status !== 'closed' && project.include_in_forecast !== false && (project.actual_margin == null || project.actual_margin === '')).map(project => project.sale_id).filter(Boolean))];
@@ -109,7 +110,7 @@ export default async function(req) {
     }
     contributions.sort((a, b) => b.grossProfit - a.grossProfit || String(a.title).localeCompare(String(b.title)) || a.id.localeCompare(b.id));
     const details = requestedQuarter ? { items: contributions.slice(offset, offset + 50), total: contributions.length, has_more: offset + 50 < contributions.length, next_cursor: offset + 50 < contributions.length ? String(offset + 50) : null } : undefined;
-    return Response.json({ fiscalYear: year, target, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: total(months), months, quarters, excludedProjects, incompleteProjects, details });
+    return Response.json({ fiscalYear: year, target, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: { ...total(months), forecastGrossProfit: months.reduce((sum, month) => sum + month.forecastGrossProfit, 0) }, months, quarters, excludedProjects, incompleteProjects, details });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
