@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert } from '@/components/ui/alert';
 import { Loader2, CheckCircle2, AlertCircle, Plus, Trash2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
+import GpAllocationLauncher from '@/components/projects/GpAllocationLauncher';
 
 export default function HistoricalProjectAuditForm({ preselectedLeadId }) {
     const [selectedLeadId, setSelectedLeadId] = useState(preselectedLeadId || null);
@@ -462,16 +463,6 @@ export default function HistoricalProjectAuditForm({ preselectedLeadId }) {
             if (project) {
                 console.log('Updating project...');
                 try {
-                    // Build clean allocations
-                    const cleanAllocations = monthlyAllocations
-                        .filter(a => a.year && a.month && parseFloat(a.percentage) > 0)
-                        .map(a => ({
-                            year: Number(a.year),
-                            month: Number(a.month),
-                            period: `${a.year}-${String(a.month).padStart(2, '0')}`,
-                            percentage: Number(a.percentage)
-                        }));
-
                     await updateProjectMutation.mutateAsync({
                         id: project.id,
                         project_type: data.project_type || project.project_type,
@@ -485,7 +476,6 @@ export default function HistoricalProjectAuditForm({ preselectedLeadId }) {
                         crew_assignment: data.crew_assignment || project.crew_assignment,
                         color: data.color || project.color,
                         status_history: filledTimeline,
-                        monthly_revenue_allocations: cleanAllocations,
                         notes: data.project_notes
                     });
                     console.log('Project updated successfully');
@@ -845,99 +835,7 @@ export default function HistoricalProjectAuditForm({ preselectedLeadId }) {
                         </CardContent>
                     </Card>
 
-                    {/* Monthly Revenue Allocations */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <DollarSign className="w-5 h-5 text-amber-600" />
-                                        Monthly Revenue Allocations
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Allocate what percentage of contract value was recognized each month.
-                                        Total should equal 100% for a completed project.
-                                    </CardDescription>
-                                </div>
-                                <Button type="button" variant="outline" size="sm" onClick={() => {
-                                    setMonthlyAllocations([...monthlyAllocations, { year: new Date().getFullYear(), month: 1, percentage: 0 }]);
-                                }}>
-                                    <Plus className="w-4 h-4 mr-1" /> Add Month
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {monthlyAllocations.length > 0 ? (
-                                <div className="space-y-2">
-                                    {monthlyAllocations.map((alloc, index) => (
-                                        <div key={index} className="flex gap-2 items-center p-2 rounded-lg border bg-amber-50 border-amber-200">
-                                            <div className="flex-1">
-                                                <Label className="text-xs">Year</Label>
-                                                <Input
-                                                    type="number"
-                                                    value={alloc.year || ''}
-                                                    onChange={(e) => {
-                                                        const updated = [...monthlyAllocations];
-                                                        updated[index].year = parseInt(e.target.value) || '';
-                                                        setMonthlyAllocations(updated);
-                                                    }}
-                                                    placeholder="2025"
-                                                />
-                                            </div>
-                                            <div className="flex-1">
-                                                <Label className="text-xs">Month (1-12)</Label>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    max="12"
-                                                    value={alloc.month || ''}
-                                                    onChange={(e) => {
-                                                        const updated = [...monthlyAllocations];
-                                                        updated[index].month = parseInt(e.target.value) || '';
-                                                        setMonthlyAllocations(updated);
-                                                    }}
-                                                    placeholder="1"
-                                                />
-                                            </div>
-                                            <div className="flex-1">
-                                                <Label className="text-xs">% of Contract</Label>
-                                                <Input
-                                                    type="number"
-                                                    step="0.1"
-                                                    min="0"
-                                                    max="100"
-                                                    value={alloc.percentage || ''}
-                                                    onChange={(e) => {
-                                                        const updated = [...monthlyAllocations];
-                                                        updated[index].percentage = parseFloat(e.target.value) || 0;
-                                                        setMonthlyAllocations(updated);
-                                                    }}
-                                                    placeholder="10"
-                                                />
-                                            </div>
-                                            <Button type="button" variant="ghost" size="icon" className="mt-5" onClick={() => {
-                                                setMonthlyAllocations(monthlyAllocations.filter((_, i) => i !== index));
-                                            }}>
-                                                <Trash2 className="w-4 h-4 text-red-500" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                    <div className="flex justify-between items-center pt-2 px-2">
-                                        <p className="text-sm text-slate-600">
-                                            Total: <span className={`font-bold ${Math.abs(monthlyAllocations.reduce((s, a) => s + (a.percentage || 0), 0) - 100) < 0.1 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                {monthlyAllocations.reduce((s, a) => s + (a.percentage || 0), 0).toFixed(1)}%
-                                            </span>
-                                        </p>
-                                        {Math.abs(monthlyAllocations.reduce((s, a) => s + (a.percentage || 0), 0) - 100) >= 0.1 && (
-                                            <p className="text-xs text-amber-600">Should total 100% for a completed project</p>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <p className="text-slate-500 text-center py-4">No revenue allocations set. Add months to allocate revenue recognition.</p>
-                            )}
-                        </CardContent>
-                    </Card>
+                    <Card><CardHeader><CardTitle>GP Dollar Allocations</CardTitle><CardDescription>Uses the same weekly schedule as the dashboard and project editors. Save financial corrections above before reconciling the GP budget.</CardDescription></CardHeader><CardContent>{(() => { const jobSaleIds = sales.filter(sale => sale.lead_id === selectedLeadId).map(sale => sale.id); const jobProject = projects.find(project => jobSaleIds.includes(project.sale_id)); const precon = sales.find(sale => sale.lead_id === selectedLeadId && sale.sale_type === 'preconstruction'); return <GpAllocationLauncher projectId={jobProject?.id} saleId={jobProject ? undefined : precon?.id} />; })()}</CardContent></Card>
 
                     {/* Unified Timeline */}
                     <Card>

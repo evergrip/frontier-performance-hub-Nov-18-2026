@@ -23,6 +23,7 @@ import AuditItemFixer from '../components/common/AuditItemFixer';
 import EditProjectDetailDialog from '../components/projects/EditProjectDetailDialog';
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
+import GpAllocationLauncher from '@/components/projects/GpAllocationLauncher';
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import { allocationDate } from '@/components/utils/projectPeriod';
@@ -227,19 +228,6 @@ export default function Projects() {
       project_manager_id: project.project_manager_id || ''
     });
     
-    // Initialize monthly allocations if advancing TO mobilization
-    const nextStatus = getNextStatus(project.status);
-    if (nextStatus === 'mobilization') {
-      const now = new Date();
-      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
-      setSelectedFiscalYear(currentFiscalYear);
-      
-      setMonthlyAllocations(allocationSlots(project.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
-    }
-    
     setAdvanceDialogOpen(true);
   };
 
@@ -251,11 +239,6 @@ export default function Projects() {
       variance_explanation: ''
     });
     
-    // Preserve existing monthly allocations, including all prior fiscal years.
-    const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
-    const currentFiscalYear = getCurrentFiscalYear(fiscalStartMonth);
-    setSelectedFiscalYear(currentFiscalYear);
-    setMonthlyAllocations(allocationSlots(project.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
     setCloseoutDialogOpen(true);
   };
 
@@ -272,19 +255,6 @@ export default function Projects() {
       actual_margin: project.actual_margin ?? sales.find(sale => sale.id === project.sale_id)?.estimated_margin ?? '',
       client_id: project.client_id || ''
     });
-    
-    // Load allocations for all active statuses including awaiting_to_be_scheduled
-    if (['awaiting_to_be_scheduled', 'mobilization', 'active_construction', 'substantial_completion_closeout'].includes(project.status)) {
-      const now = new Date();
-      const fiscalStartMonth = companySettings?.fiscal_year_start_month || 10;
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      const currentFiscalYear = currentMonth >= fiscalStartMonth ? currentYear : currentYear - 1;
-      setSelectedFiscalYear(currentFiscalYear);
-      
-      setMonthlyAllocations(allocationSlots(project.monthly_revenue_allocations, currentFiscalYear, fiscalStartMonth));
-      setAllocationDialogOpen(true);
-    }
     
     setEditDialogOpen(true);
   };
@@ -306,7 +276,7 @@ export default function Projects() {
     const nextStatus = getNextStatus(selectedProject.status);
     if (!nextStatus) return;
 
-    if (nextStatus === 'mobilization' && (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || monthlyAllocations.reduce((s, a) => s + Number(a.percentage), 0) > 100.1)) {
+    if (false && nextStatus === 'mobilization' && (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || monthlyAllocations.reduce((s, a) => s + Number(a.percentage), 0) > 100.1)) {
       toast.error('Correct the monthly allocation schedule before advancing this project. Total shares across all years cannot exceed 100%.');
       return;
     }
@@ -347,12 +317,6 @@ export default function Projects() {
       updateData.project_manager_id = projectForm.project_manager_id;
     }
     
-    if (nextStatus === 'mobilization' && monthlyAllocations.length > 0) {
-      updateData.monthly_revenue_allocations = monthlyAllocations
-        .filter(a => a.year && a.month && parseFloat(a.percentage) > 0)
-        .map(a => ({ year: Number(a.year), month: Number(a.month), period: `${a.year}-${String(a.month).padStart(2, '0')}`, percentage: Number(a.percentage) }));
-    }
-    
     updateProjectStatusMutation.mutate(updateData);
   };
 
@@ -378,13 +342,11 @@ export default function Projects() {
       return;
     }
     
-    // Validate that monthly allocations sum to 100%
-    const totalPercent = monthlyAllocations.reduce((sum, a) => sum + (parseFloat(a.percentage) || 0), 0);
-    if (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || Math.abs(totalPercent - 100) > 0.1) {
-      toast.error(`Monthly allocations must total 100% (currently ${totalPercent}%)`);
-      return;
-    }
-    
+    try {
+      const validation = await base44.functions.invoke('jobGpForecast', { action: 'validateCloseout', projectId: selectedProject.id, finalTotalGP: contractValue - actualCosts });
+      if (validation.data.error) throw new Error(validation.data.error);
+    } catch (error) { toast.error(error.response?.data?.error || error.message); return; }
+
     const commissionDecision = getCloseoutCommissionDecision(selectedProject, linkedSale);
     let commissionWarning = commissionDecision.shouldProcess ? null : commissionDecision.reason;
 
@@ -415,9 +377,7 @@ export default function Projects() {
       status_history: closedHistory,
       actual_costs: parseFloat(projectForm.actual_costs) || 0,
       actual_margin: parseFloat(projectForm.actual_margin) || 0,
-      monthly_revenue_allocations: monthlyAllocations
-        .filter(a => a.year && a.month && parseFloat(a.percentage) > 0)
-        .map(a => ({ year: Number(a.year), month: Number(a.month), period: `${a.year}-${String(a.month).padStart(2, '0')}`, percentage: Number(a.percentage) })),
+
       notes: (() => {
         let n = selectedProject.notes || '';
         if (projectForm.variance_explanation) n = `${n}\n\nCloseout Variance Explanation: ${projectForm.variance_explanation}`.trim();
@@ -432,10 +392,7 @@ export default function Projects() {
 
   const handleUpdateProject = (e) => {
     e.preventDefault();
-    if (monthlyAllocations.some(a => !allocationDate(a) || !Number.isFinite(Number(a.percentage)) || Number(a.percentage) < 0 || Number(a.percentage) > 100) || monthlyAllocations.reduce((s, a) => s + Number(a.percentage), 0) > 100.1) {
-      toast.error('Correct monthly allocations before saving; shares across all years cannot exceed 100%.');
-      return;
-    }
+
     const updateData = {
       projectId: selectedProject.id,
       status: selectedProject.status,
@@ -443,16 +400,6 @@ export default function Projects() {
       actual_margin: projectForm.actual_margin === '' || projectForm.actual_margin == null ? null : (parseFloat(projectForm.actual_margin) || 0),
       client_id: projectForm.client_id || selectedProject.client_id
     };
-    
-    // Always replace the full allocation array with clean objects
-    if (monthlyAllocations.length > 0) {
-      const cleanAllocations = monthlyAllocations
-        .filter(a => a.year && a.month && parseFloat(a.percentage) > 0)
-        .map(a => ({ year: Number(a.year), month: Number(a.month), period: `${a.year}-${String(a.month).padStart(2, '0')}`, percentage: Number(a.percentage) }));
-      updateData.monthly_revenue_allocations = cleanAllocations;
-    } else {
-      updateData.monthly_revenue_allocations = [];
-    }
     
     updateProjectStatusMutation.mutate(updateData);
     setEditDialogOpen(false);
@@ -497,7 +444,7 @@ export default function Projects() {
     
     // Wipe allocations when moving back to awaiting_to_be_scheduled
     if (newStatus === 'awaiting_to_be_scheduled') {
-      updates.monthly_revenue_allocations = [];
+      // GP timing survives phase changes; only staffing assignments are reset.
       updates.monthly_work_allocations = [];
       updates.color = null;
     }
@@ -557,6 +504,9 @@ export default function Projects() {
         commission_processed: false
       });
 
+      // Return the same GP dollar schedule to pre-construction before deleting its project.
+      await base44.entities.GrossProfitForecast.updateMany({ project_id: project.id }, { $set: { project_id: '' } });
+      await base44.entities.Sale.update(preconSale.id, { monthly_revenue_allocations: project.monthly_revenue_allocations || preconSale.monthly_revenue_allocations || [] });
       // Delete the construction sale
       await base44.entities.Sale.delete(constructionSale.id);
 
@@ -729,17 +679,7 @@ export default function Projects() {
                                        </span>
                                      </div>
                                    </div>
-                                   {(() => {
-                                      const allocs = project.monthly_revenue_allocations || [];
-                                      const totalPct = allocs.reduce((s, a) => s + (Number(a.percentage) || 0), 0);
-                                      const isFullyAllocated = totalPct >= 99.9;
-                                      const hasAny = allocs.length > 0 && totalPct > 0;
-                                      return (
-                                        <p className={`text-[10px] mt-0.5 font-medium ${isFullyAllocated ? 'text-emerald-600' : hasAny ? 'text-amber-600' : 'text-red-400'}`}>
-                                          {isFullyAllocated ? '● Fully Allocated' : hasAny ? `◐ ${totalPct.toFixed(0)}% Allocated` : '○ Not Allocated'}
-                                        </p>
-                                      );
-                                    })()}
+                                   <p className="text-[10px] mt-0.5">GP allocation schedule available in project details</p>
                                     {(() => {
                                       const financials = getProjectGrossProfit(project, sales.find(sale => sale.id === project.sale_id));
                                       return <p className="text-[10px] text-emerald-700 mt-0.5">GP ${Math.round(financials.grossProfit).toLocaleString()} · GM {financials.grossMargin.toFixed(1)}%</p>;
@@ -1007,91 +947,9 @@ export default function Projects() {
               </div>
             )}
 
-            {/* Show revenue allocation UI if advancing TO mobilization */}
-            {getNextStatus(selectedProject?.status) === 'mobilization' && (
-              <div className="border-t pt-4 mt-4">
-                <Label className="block mb-2">Revenue Forecast (Optional)</Label>
-                <p className="text-xs text-slate-500 mb-3">
-                  Start forecasting monthly revenue for this ${(selectedProject?.contract_value || 0).toLocaleString()} project. You can adjust this anytime during construction.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAllocationDialogOpen(!allocationDialogOpen)}
-                  className="mb-3"
-                >
-                  {allocationDialogOpen ? 'Hide' : 'Show'} Revenue Schedule
-                </Button>
-                
-                {allocationDialogOpen && (
-                  <>
-                    <div className="mb-3">
-                     <Label className="text-xs mb-1">Fiscal Year</Label>
-                     <div className="flex items-center gap-2">
-                       <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                         const newFY = selectedFiscalYear - 1;
-                         setSelectedFiscalYear(newFY);
-                         const fsm = companySettings?.fiscal_year_start_month || 10;
-                         const newMonths = [];
-                         for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
-                         setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
-                       }}><span className="text-xs">◀</span></Button>
-                       <span className="text-sm font-semibold text-center flex-1">{getFiscalYearLabel(selectedFiscalYear, companySettings?.fiscal_year_start_month || 10)}</span>
-                       <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                         const newFY = selectedFiscalYear + 1;
-                         setSelectedFiscalYear(newFY);
-                         const fsm = companySettings?.fiscal_year_start_month || 10;
-                         const newMonths = [];
-                         for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
-                         setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
-                       }}><span className="text-xs">▶</span></Button>
-                     </div>
-                       </div>
+            {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} />}
 
-                        <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto border rounded-lg p-3 bg-slate-50">
-                        {monthlyAllocations
-                        .filter(alloc => {
-                         const fsm = companySettings?.fiscal_year_start_month || 10;
-                         if (fsm === 1) return alloc.year === selectedFiscalYear;
-                         return (alloc.month >= fsm && alloc.year === selectedFiscalYear) ||
-                                (alloc.month < fsm && alloc.year === selectedFiscalYear + 1);
-                        })
-                        .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year)
-                        .map((alloc) => {
-                         const monthName = new Date(alloc.year, alloc.month - 1).toLocaleString('default', { month: 'short' });
-                         return (
-                           <div key={`${alloc.year}-${alloc.month}`}>
-                             <label className="text-xs text-slate-600">{monthName} {alloc.year}</label>
-                             <input
-                               type="number"
-                               min="0"
-                               max="100"
-                               step="0.1"
-                               value={alloc.percentage}
-                               onChange={(e) => setMonthlyAllocations(monthlyAllocations.map(a => 
-                                 a.month === alloc.month && a.year === alloc.year 
-                                   ? { ...a, percentage: parseFloat(e.target.value) || 0 }
-                                   : a
-                               ))}
-                               className="w-full px-2 py-1 border rounded text-xs"
-                               placeholder="0"
-                             />
-                           </div>
-                         );
-                        })}
-                        </div>
-                        <div className="text-xs mt-2 p-2 bg-blue-50 rounded">
-                        Total (all years): <span className="font-semibold">
-                        {monthlyAllocations.reduce((sum, a) => sum + (parseFloat(a.percentage) || 0), 0).toFixed(1)}%
-                        </span> (flexible during construction)
-                        </div>
-                        </>
-                        )}
-                        </div>
-                        )}
-
-                        <div className="flex gap-2 justify-end pt-4">
+                         <div className="flex gap-2 justify-end pt-4">
                         <Button type="button" variant="outline" onClick={() => setAdvanceDialogOpen(false)}>
                         Cancel
                         </Button>
@@ -1214,115 +1072,7 @@ export default function Projects() {
               </div>
             )}
 
-            {/* Show revenue allocation for all active projects */}
-            {selectedProject && ['awaiting_to_be_scheduled', 'mobilization', 'active_construction', 'substantial_completion_closeout'].includes(selectedProject.status) && (
-              <div className="border-t pt-4 mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Revenue Allocation</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAllocationDialogOpen(!allocationDialogOpen)}
-                  >
-                    {allocationDialogOpen ? 'Hide' : 'Edit'} Schedule
-                  </Button>
-                </div>
-                {(!selectedProject.monthly_revenue_allocations || selectedProject.monthly_revenue_allocations.length === 0) ? (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
-                    <p className="text-xs text-amber-800 font-medium">No revenue allocated yet</p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Allocate monthly percentages so this project's revenue appears in reports before closeout.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mb-3">
-                    <p className="text-xs text-emerald-800 font-medium">
-                      {selectedProject.monthly_revenue_allocations.reduce((sum, a) => sum + (a.percentage || 0), 0).toFixed(1)}% allocated across {selectedProject.monthly_revenue_allocations.filter(a => a.percentage > 0).length} months
-                    </p>
-                    <p className="text-xs text-emerald-700 mt-1">
-                      Revenue: ${(((selectedProject.contract_value || 0) * selectedProject.monthly_revenue_allocations.reduce((sum, a) => sum + (a.percentage || 0), 0) / 100)).toLocaleString(undefined, {maximumFractionDigits: 0})} of ${(selectedProject.contract_value || 0).toLocaleString()} recognized
-                    </p>
-                  </div>
-                )}
-                <p className="text-xs text-slate-500 mb-3">
-                  Distribute revenue across months for reporting. Update anytime — finalized at closeout.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs text-orange-700 border-orange-300 hover:bg-orange-50 mb-3"
-                  onClick={() => { setSubDialogProject(selectedProject); setSubDialogOpen(true); }}
-                >
-                  Sub/In-House Split
-                </Button>
-                
-                {allocationDialogOpen && (
-                  <>
-                    <div className="mb-3">
-                      <Label className="text-xs mb-1">Fiscal Year</Label>
-                      <div className="flex items-center gap-2">
-                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                          const newFY = selectedFiscalYear - 1;
-                          setSelectedFiscalYear(newFY);
-                          const fsm = companySettings?.fiscal_year_start_month || 10;
-                          const newMonths = [];
-                          for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
-                          setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
-                        }}><span className="text-xs">◀</span></Button>
-                        <span className="text-sm font-semibold text-center flex-1">{getFiscalYearLabel(selectedFiscalYear, companySettings?.fiscal_year_start_month || 10)}</span>
-                        <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                          const newFY = selectedFiscalYear + 1;
-                          setSelectedFiscalYear(newFY);
-                          const fsm = companySettings?.fiscal_year_start_month || 10;
-                          const newMonths = [];
-                          for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
-                          setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
-                        }}><span className="text-xs">▶</span></Button>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-2 max-h-[160px] overflow-y-auto border rounded-lg p-3 bg-slate-50">
-                      {monthlyAllocations
-                        .filter(alloc => {
-                          const fsm = companySettings?.fiscal_year_start_month || 10;
-                          if (fsm === 1) return alloc.year === selectedFiscalYear;
-                          return (alloc.month >= fsm && alloc.year === selectedFiscalYear) ||
-                                 (alloc.month < fsm && alloc.year === selectedFiscalYear + 1);
-                        })
-                        .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year)
-                        .map((alloc) => {
-                          const monthName = new Date(alloc.year, alloc.month - 1).toLocaleString('default', { month: 'short' });
-                          return (
-                            <div key={`${alloc.year}-${alloc.month}`}>
-                              <label className="text-xs text-slate-600">{monthName} {alloc.year}</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                value={alloc.percentage}
-                                onChange={(e) => setMonthlyAllocations(monthlyAllocations.map(a => 
-                                  a.month === alloc.month && a.year === alloc.year 
-                                    ? { ...a, percentage: parseFloat(e.target.value) || 0 }
-                                    : a
-                                ))}
-                                className="w-full px-2 py-1 border rounded text-xs"
-                                placeholder="0"
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
-                    <div className="text-xs mt-2 p-2 bg-blue-50 rounded">
-                      Total (all years): <span className="font-semibold">
-                        {monthlyAllocations.reduce((sum, a) => sum + (parseFloat(a.percentage) || 0), 0).toFixed(1)}%
-                      </span> (flexible until closeout)
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} />}
 
             <div className="flex gap-2 justify-end pt-4">
               <Button type="button" variant="outline" onClick={() => { setEditDialogOpen(false); setAllocationDialogOpen(false); }}>
@@ -1448,77 +1198,7 @@ export default function Projects() {
               );
             })()}
 
-            {/* Fiscal Year Selector */}
-            <div>
-              <Label className="block mb-2">Fiscal Year for Revenue Allocation *</Label>
-              <p className="text-xs text-slate-500 mb-2">
-                Navigate to the fiscal year for allocation
-              </p>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                  const newFY = selectedFiscalYear - 1;
-                  setSelectedFiscalYear(newFY);
-                  const fsm = companySettings?.fiscal_year_start_month || 10;
-                  const newMonths = [];
-                  for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
-                  setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
-                }}><span className="text-xs">◀</span></Button>
-                <span className="text-sm font-semibold text-center flex-1">{getFiscalYearLabel(selectedFiscalYear, companySettings?.fiscal_year_start_month || 10)}</span>
-                <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-                  const newFY = selectedFiscalYear + 1;
-                  setSelectedFiscalYear(newFY);
-                  const fsm = companySettings?.fiscal_year_start_month || 10;
-                  const newMonths = [];
-                  for (let i = 0; i < 12; i++) { const month = ((fsm - 1 + i) % 12) + 1; const yr = month >= fsm ? newFY : newFY + 1; newMonths.push({ year: yr, month, percentage: 0 }); }
-                  setMonthlyAllocations(prev => { const merged = [...prev]; newMonths.forEach(nm => { if (!merged.find(a => a.year === nm.year && a.month === nm.month)) merged.push(nm); }); return merged; });
-                }}><span className="text-xs">▶</span></Button>
-              </div>
-            </div>
-
-            {/* Monthly Revenue Allocation */}
-            <div>
-              <Label className="block mb-2">Monthly Revenue Allocation *</Label>
-              <p className="text-xs text-slate-500 mb-3">
-                Distribute the ${(selectedProject?.contract_value || 0).toLocaleString()} contract revenue across months. Must total 100%. Switch fiscal years to allocate across multiple years.
-              </p>
-              <div className="grid grid-cols-3 gap-2 max-h-[200px] overflow-y-auto border rounded-lg p-3 bg-slate-50">
-                {monthlyAllocations
-                  .filter(alloc => {
-                    const fsm = companySettings?.fiscal_year_start_month || 10;
-                    if (fsm === 1) return alloc.year === selectedFiscalYear;
-                    return (alloc.month >= fsm && alloc.year === selectedFiscalYear) ||
-                           (alloc.month < fsm && alloc.year === selectedFiscalYear + 1);
-                  })
-                  .sort((a, b) => a.year === b.year ? a.month - b.month : a.year - b.year)
-                  .map((alloc) => {
-                    const monthName = new Date(alloc.year, alloc.month - 1).toLocaleString('default', { month: 'short' });
-                    return (
-                      <div key={`${alloc.year}-${alloc.month}`}>
-                        <label className="text-xs text-slate-600">{monthName} {alloc.year}</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                          value={alloc.percentage}
-                          onChange={(e) => setMonthlyAllocations(monthlyAllocations.map(a => 
-                            a.month === alloc.month && a.year === alloc.year 
-                              ? { ...a, percentage: parseFloat(e.target.value) || 0 }
-                              : a
-                          ))}
-                          className="w-full px-2 py-1 border rounded text-xs"
-                          placeholder="0"
-                        />
-                      </div>
-                    );
-                  })}
-              </div>
-              <div className="text-xs mt-2 p-2 bg-blue-50 rounded">
-                Total (all years): <span className={`font-semibold ${monthlyAllocations.reduce((sum, a) => sum + (parseFloat(a.percentage) || 0), 0) === 100 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {monthlyAllocations.reduce((sum, a) => sum + (parseFloat(a.percentage) || 0), 0).toFixed(1)}%
-                </span>
-              </div>
-            </div>
+            {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} label="Reconcile final GP dollar allocations" />}
 
             {selectedProject && projectForm.actual_costs && projectForm.actual_margin && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">

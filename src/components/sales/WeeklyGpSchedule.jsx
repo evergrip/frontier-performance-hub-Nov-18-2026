@@ -1,16 +1,16 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-const money = value => `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-export default function WeeklyGpSchedule({ data, offset, onOffset }) {
+import { Input } from '@/components/ui/input';
+const money = value => `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export default function WeeklyGpSchedule({ data, offset, onOffset, onOverride, disabled }) {
   return <div className="space-y-3">
-    <p className="text-sm">Estimated construction GP: <strong>{money(data.estimatedGP)}</strong></p>
-    <p className="text-sm">FY {data.goalYear} annual GP goal {money(data.annualTarget)} ÷ 52 = <strong>{money(data.weeklyGP)} per week</strong></p>
-    {data.annualTarget <= 0 && <p className="text-sm text-destructive">Set a positive annual GP goal for this start date’s fiscal year in Company Settings first.</p>}
-    {data.weeks > 0 && <>
-      <p className="text-xs text-muted-foreground">{data.weeks} weekly allocations, finishing {data.endDate}. First allocation is on the probable start date; each following allocation is seven days later. The last week uses only the remaining GP.</p>
-      <div className="max-h-60 overflow-auto"><table className="w-full text-left text-xs"><thead><tr><th className="p-2">Week date</th><th className="p-2">Forecast GP</th><th className="p-2">Remaining GP</th></tr></thead><tbody>{data.rows.map(row => <tr key={row.date} className="border-t border-border"><td className="p-2">{row.date}</td><td className="p-2">{money(row.amount)}</td><td className="p-2">{money(row.remaining)}</td></tr>)}</tbody></table></div>
-      <div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={!offset} onClick={() => onOffset(Math.max(0, offset - 50))}>Previous weeks</Button><Button type="button" size="sm" variant="outline" disabled={!data.hasMore} onClick={() => onOffset(offset + 50)}>Next weeks</Button></div>
-    </>}
-    <p className="text-xs text-muted-foreground">Saving uses the latest pre-con construction-budget × estimated-margin GP, and the start-year annual goal. Saved forecasts retain this weekly rate and total GP across fiscal years and construction conversion; save again to regenerate the schedule. They are excluded when the job is lost or finalized without construction. These amounts affect forecast GP only, never reported GP.</p>
+    <p className="text-xs text-muted-foreground">{data.phase} · current financial GP {money(data.estimatedGP)} · saved schedule budget {money(data.draft.total_gp)}</p>
+    <p className="text-sm">FY {data.goalYear} annual GP goal {money(data.annualTarget)} ÷ 52 = <strong>{money(data.weeklyGP)} per automatic week</strong></p>
+    {data.weeklyGP <= 0 && <p className="text-xs text-muted-foreground">Automatic allocation is unavailable without a positive annual goal. You can still allocate GP dollars manually.</p>}
+    {data.migratingLegacy && <p className="text-xs text-muted-foreground">Existing monthly percentages have been converted to GP dollars, preserving each month’s share. Save to adopt this as the single schedule.</p>}
+    <p className="text-xs">Scheduled GP {money(data.allocatedGP)} · unallocated GP {money(data.unallocatedGP)}{data.weeks > 0 ? ` · finishes ${data.endDate}` : ''}</p>
+    <p className="text-xs text-muted-foreground">A manual amount replaces that week’s automatic amount, including $0 to skip a week. Other automatic weeks absorb only the remaining GP; total allocations cannot exceed the job budget. “Auto” removes that override. Changes stay with the job through conversion and send-back.</p>
+    {!!data.rows.length && <><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr><th className="p-2">Week date</th><th className="p-2">GP allocation ($)</th><th className="p-2">Source</th><th className="p-2">Reset</th></tr></thead><tbody>{data.rows.map(row => <tr key={row.date} className="border-t border-border"><td className="p-2 whitespace-nowrap">{row.date}</td><td className="p-2"><Input aria-label={`GP dollars for ${row.date}`} className="min-w-28" type="number" min="0" step="0.01" disabled={disabled} value={row.amount} onChange={event => onOverride(row.date, event.target.value === '' ? 0 : Number(event.target.value))} /></td><td className="p-2">{row.manual ? 'Manual' : 'Auto'}</td><td className="p-2"><Button type="button" size="sm" variant="ghost" disabled={disabled || !row.manual} onClick={() => onOverride(row.date, null)}>Auto</Button></td></tr>)}</tbody></table></div><div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={disabled || !offset} onClick={() => onOffset(Math.max(0, offset - 12))}>Previous weeks</Button><Button type="button" size="sm" variant="outline" disabled={disabled || !data.hasMore} onClick={() => onOffset(offset + 12)}>Next weeks</Button></div></>}
+    <p className="text-xs text-muted-foreground">Reported GP remains based on recorded construction costs; weekly dollar allocations control timing, not profit earned by simply passing a date.</p>
   </div>;
 }

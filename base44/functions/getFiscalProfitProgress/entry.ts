@@ -8,8 +8,8 @@ export default async function(req) {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    const { fiscalYear, quarter, detailCursor } = await req.json();
-    const requestedQuarter = quarter == null ? null : Number(quarter);
+    const { fiscalYear, quarter, detailCursor, detailYear = false } = await req.json();
+    const requestedQuarter = detailYear ? 1 : quarter == null ? null : Number(quarter);
     const offset = detailCursor == null ? 0 : Number(detailCursor);
     if ((requestedQuarter !== null && (!Number.isInteger(requestedQuarter) || requestedQuarter < 1 || requestedQuarter > 4)) || !Number.isInteger(offset) || offset < 0) return Response.json({ error: 'Invalid quarter or cursor' }, { status: 400 });
     const contributions = [];
@@ -25,8 +25,8 @@ export default async function(req) {
     });
     const byPeriod = Object.fromEntries(months.map(month => [month.period, month]));
     const missingMargins = Array.from({ length: 4 }, () => new Set());
-    const detailStart = requestedQuarter ? months[(requestedQuarter - 1) * 3].period : null;
-    const detailEnd = requestedQuarter ? months[requestedQuarter * 3 - 1].period : null;
+    const detailStart = detailYear ? start : requestedQuarter ? months[(requestedQuarter - 1) * 3].period : null;
+    const detailEnd = detailYear ? end : requestedQuarter ? months[requestedQuarter * 3 - 1].period : null;
     const goalPage = await base44.entities.FiscalGoal.filter({ fiscal_year: year }, { limit: 1, fields: ['gross_profit_target'] });
     const target = Number(goalPage.items[0]?.gross_profit_target) || 0;
     const saleIds = [];
@@ -90,7 +90,10 @@ export default async function(req) {
       for (const week of entry.weeks) byPeriod[week.date.slice(0, 7)].forecastGrossProfit += week.amount;
       if (requestedQuarter) {
         const weeks = entry.weeks.filter(week => week.date.slice(0, 7) >= detailStart && week.date.slice(0, 7) <= detailEnd);
-        if (weeks.length) contributions.push({ id: `forecast-${entry.forecast.id}`, forecastId: entry.forecast.id, kind: 'weekly_forecast', title: entry.forecast.title, phase: entry.phase, totalGP: entry.forecast.total_gp, weeklyGP: entry.forecast.weekly_gp, probableStartDate: entry.forecast.probable_start_date, grossProfit: 0, forecastGrossProfit: weeks.reduce((sum, week) => sum + week.amount, 0), weeks });
+        const existingRow = entry.forecast.project_id ? contributions.find(row => row.id === entry.forecast.project_id) : null;
+        const fields = { forecastId: entry.forecast.id, projectId: entry.forecast.project_id, kind: 'weekly_forecast', title: entry.forecast.title, phase: entry.phase, totalGP: entry.forecast.total_gp, weeklyGP: entry.forecast.weekly_gp, probableStartDate: entry.forecast.probable_start_date, forecastGrossProfit: weeks.reduce((sum, week) => sum + week.amount, 0), weeks };
+        if (existingRow) Object.assign(existingRow, fields);
+        else if (weeks.length) contributions.push({ id: entry.forecast.project_id || `forecast-${entry.forecast.id}`, grossProfit: 0, ...fields });
       }
     }
     const total = rows => rows.reduce((sum, month) => ({ revenue: sum.revenue + month.revenue, costs: sum.costs + month.costs, grossProfit: sum.grossProfit + month.grossProfit }), { revenue: 0, costs: 0, grossProfit: 0 });
@@ -98,9 +101,15 @@ export default async function(req) {
       const rows = months.slice(index * 3, index * 3 + 3);
       return { quarter: index + 1, start: rows[0].period, end: rows[2].period, target: target / 4, isCurrent: rows[0].period <= currentPeriod && rows[2].period >= currentPeriod, upcoming: rows[0].period > currentPeriod, ...total(rows), forecastGrossProfit: rows.reduce((sum, row) => sum + row.forecastGrossProfit, 0), forecastMissingMargins: missingMargins[index].size };
     });
+    for (const contribution of contributions) {
+      const grouped = Object.fromEntries(months.map(month => [month.period, 0]));
+      if (contribution.kind === 'weekly_forecast') for (const week of contribution.weeks) grouped[week.date.slice(0, 7)] += week.amount;
+      else for (const month of contribution.months) grouped[month.period] += month.forecastGrossProfit;
+      contribution.forecastMonths = grouped;
+    }
     contributions.sort((a, b) => b.grossProfit - a.grossProfit || String(a.title).localeCompare(String(b.title)) || a.id.localeCompare(b.id));
     const details = requestedQuarter ? { items: contributions.slice(offset, offset + 50), total: contributions.length, has_more: offset + 50 < contributions.length, next_cursor: offset + 50 < contributions.length ? String(offset + 50) : null } : undefined;
-    return Response.json({ fiscalYear: year, target, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: total(months), quarters, excludedProjects, incompleteProjects, details });
+    return Response.json({ fiscalYear: year, target, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: total(months), months, quarters, excludedProjects, incompleteProjects, details });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

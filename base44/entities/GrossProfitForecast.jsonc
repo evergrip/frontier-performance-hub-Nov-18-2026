@@ -2,6 +2,9 @@
   "name": "GrossProfitForecast",
   "type": "object",
   "properties": {
+    "job_key": {
+      "type": "string"
+    },
     "precon_sale_id": {
       "type": "string"
     },
@@ -29,10 +32,34 @@
     "weekly_gp": {
       "type": "number",
       "minimum": 0
+    },
+    "weekly_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "date",
+          "amount"
+        ]
+      }
+    },
+    "revision": {
+      "type": "number",
+      "default": 0
     }
   },
   "required": [
-    "precon_sale_id",
+    "job_key",
     "probable_start_date",
     "total_gp",
     "annual_gp_goal",

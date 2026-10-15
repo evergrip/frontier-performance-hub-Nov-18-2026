@@ -252,72 +252,11 @@ export default function Sales() {
 
   const convertToConstructionMutation = useMutation({
     mutationFn: async ({ preconSale, final_precon_value, construction_budget }) => {
-      // Update preconstruction sale with final value and add closed_won to phase_history
-      const updatedPreconHistory = [...(preconSale.phase_history || []), { status: 'closed_won', entered_date: new Date().toISOString(), source: 'sale' }];
-      await base44.entities.Sale.update(preconSale.id, {
-        contract_value: parseFloat(final_precon_value),
-        status: 'closed_won',
-        phase_history: updatedPreconHistory
-      });
-
-      // Update preconstruction commission with final value
-      await base44.functions.invoke('processCommission', {
-        sale_id: preconSale.id,
-        sale_type: 'preconstruction',
-        final_amount: parseFloat(final_precon_value),
-        is_update: true
-      });
-
-      // Create construction sale
-      const constructionSale = await base44.entities.Sale.create({
-        title: `${preconSale.title} - Construction`,
-        client_id: preconSale.client_id,
-        lead_id: preconSale.lead_id,
-        sale_type: 'construction',
-        contract_value: parseFloat(construction_budget),
-        linked_precon_sale_id: preconSale.id,
-        assigned_to: preconSale.assigned_to,
-        estimated_margin: preconSale.estimated_margin,
-        status: 'closed_won'
-      });
-
-      // Carry sale phase history (which includes lead history) into the project
-      const saleHistory = (preconSale.phase_history?.length > 0
-        ? preconSale.phase_history
-        : [{ status: preconSale.status, entered_date: preconSale.created_date, source: 'sale' }]
-      ).map(entry => ({ ...entry, source: entry.source || 'sale' }));
-
-      const projectStatusHistory = [
-        ...saleHistory,
-        { status: 'awaiting_to_be_scheduled', entered_date: new Date().toISOString(), source: 'project' }
-      ];
-
-      // Create construction project
-      const project = await base44.entities.Project.create({
-        title: preconSale.title,
-        client_id: preconSale.client_id,
-        sale_id: constructionSale.id,
-        project_type: 'construction',
-        status: 'awaiting_to_be_scheduled',
-        contract_value: parseFloat(construction_budget),
-        status_history: projectStatusHistory
-      });
-
-      await base44.entities.GrossProfitForecast.updateMany({ precon_sale_id: preconSale.id }, { $set: { project_id: project.id } });
-
-      // Link construction sale to project
-      await base44.entities.Sale.update(constructionSale.id, {
-        converted_to_project_id: project.id
-      });
-
-      // Process commission for construction sale
-      await base44.functions.invoke('processCommission', {
-        sale_id: constructionSale.id,
-        sale_type: 'construction'
-      });
-
-      return { constructionSale, project };
+      const response = await base44.functions.invoke('convertPreconToConstruction', { saleId: preconSale.id, finalPreconValue: Number(final_precon_value), constructionBudget: Number(construction_budget) });
+      if (response.data.error) throw new Error(response.data.error);
+      return response.data;
     },
+    onError: error => toast.error(error.response?.data?.error || error.message),
     onSuccess: () => {
       queryClient.invalidateQueries(['sales']);
       queryClient.invalidateQueries(['projects']);
@@ -603,62 +542,8 @@ export default function Sales() {
           phase_history: newHistory
         });
       } else if (action === 'convert') {
-        // Reopen then convert to construction
-        const newHistory = [...(sale.phase_history || []), {
-          status: 'pending_construction_sale',
-          entered_date: new Date().toISOString(),
-          source: 'sale'
-        }, {
-          status: 'closed_won',
-          entered_date: new Date().toISOString(),
-          source: 'sale'
-        }];
-        await base44.entities.Sale.update(sale.id, {
-          status: 'closed_won',
-          phase_history: newHistory
-        });
-
-        // Create construction sale
-        const constructionSale = await base44.entities.Sale.create({
-          title: `${sale.title} - Construction`,
-          client_id: sale.client_id,
-          lead_id: sale.lead_id,
-          sale_type: 'construction',
-          contract_value: parseFloat(constructionForm.construction_budget),
-          linked_precon_sale_id: sale.id,
-          assigned_to: sale.assigned_to,
-          sale_contributors: sale.sale_contributors,
-          estimated_margin: sale.estimated_margin,
-          status: 'closed_won'
-        });
-
-        // Build project status history from sale history
-        const saleHistory = (sale.phase_history || []).map(entry => ({ ...entry, source: entry.source || 'sale' }));
-        const projectStatusHistory = [
-          ...saleHistory,
-          { status: 'awaiting_to_be_scheduled', entered_date: new Date().toISOString(), source: 'project' }
-        ];
-
-        // Create construction project
-        const project = await base44.entities.Project.create({
-          title: sale.title,
-          client_id: sale.client_id,
-          sale_id: constructionSale.id,
-          project_type: 'construction',
-          status: 'awaiting_to_be_scheduled',
-          contract_value: parseFloat(constructionForm.construction_budget),
-          status_history: projectStatusHistory
-        });
-
-        await base44.entities.GrossProfitForecast.updateMany({ precon_sale_id: sale.id }, { $set: { project_id: project.id } });
-        await base44.entities.Sale.update(constructionSale.id, {
-          converted_to_project_id: project.id
-        });
-
-        await base44.functions.invoke('processCommission', {
-          sale_id: constructionSale.id,
-          sale_type: 'construction'
-        });
+        const response = await base44.functions.invoke('convertPreconToConstruction', { saleId: sale.id, constructionBudget: Number(constructionForm.construction_budget) });
+        if (response.data.error) throw new Error(response.data.error);
       }
       return { success: true };
     },
