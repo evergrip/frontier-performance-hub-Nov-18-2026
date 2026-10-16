@@ -167,7 +167,7 @@ export default function CompanySettings() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fiscalGoals'] });
+      ['fiscalGoals', 'weeklyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'gpForecastTable'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
       toast.success('Fiscal goals saved successfully');
     }
   });

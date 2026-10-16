@@ -18,7 +18,7 @@ export default function NextYearProfitTarget({ fiscalYear, fiscalStartMonth, fis
       return goal ? base44.entities.FiscalGoal.update(goal.id, data) : base44.entities.FiscalGoal.create({ ...data, fiscal_year: Number(fiscalYear) });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fiscalGoals'] });
+      ['fiscalGoals', 'weeklyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'gpForecastTable'].forEach(key => queryClient.invalidateQueries({ queryKey: [key] }));
       toast.success('Next fiscal year Gross Profit target saved');
     },
   });
