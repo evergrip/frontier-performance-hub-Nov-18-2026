@@ -41,6 +41,7 @@ export default async function(req) {
     }
     const query = scopeUser.role === 'admin' ? { project_type: 'construction' } : { project_type: 'construction', $or: [{ project_manager_id: scopeUser.id }, { sale_id: { $in: saleIds } }] };
     let cursor, excludedProjects = 0, incompleteProjects = 0;
+    let forecastContractValue = 0, forecastEstimatedGP = 0, forecastProjectCount = 0, forecastSkippedCount = 0;
     const dateKey = value => {
       if (!value) return null;
       const text = String(value);
@@ -67,6 +68,17 @@ export default async function(req) {
         if (!allocations.length || allocationIssues(allocations).length) { excludedProjects++; continue; }
         const relevant = allocations.some(item => { const period = periodOf(item); return period >= start && period <= end; });
         if (!relevant) continue;
+        const forecastEligible = project.status !== 'closed' && project.include_in_forecast !== false && allocations.some(item => periodOf(item) >= start && periodOf(item) <= end && Number(item.percentage) > 0);
+        if (forecastEligible) {
+          const rawMargin = project.actual_margin != null && project.actual_margin !== '' ? project.actual_margin : salesById[project.sale_id]?.estimated_margin;
+          const margin = rawMargin == null || rawMargin === '' ? NaN : Number(rawMargin);
+          const contractValue = Number(project.contract_value);
+          if (Number.isFinite(contractValue) && contractValue > 0 && Number.isFinite(margin) && margin > 0 && margin <= 100) {
+            forecastContractValue += contractValue;
+            forecastEstimatedGP += contractValue * margin / 100;
+            forecastProjectCount++;
+          } else forecastSkippedCount++;
+        }
         if (allocations.reduce((sum, item) => sum + Number(item.percentage), 0) < 99.9) incompleteProjects++;
         const revenue = Number(project.contract_value), costs = Number(project.actual_costs);
         if (!Number.isFinite(revenue) || !Number.isFinite(costs)) { excludedProjects++; continue; }
@@ -110,7 +122,9 @@ export default async function(req) {
     }
     contributions.sort((a, b) => b.grossProfit - a.grossProfit || String(a.title).localeCompare(String(b.title)) || a.id.localeCompare(b.id));
     const details = requestedQuarter ? { items: contributions.slice(offset, offset + 50), total: contributions.length, has_more: offset + 50 < contributions.length, next_cursor: offset + 50 < contributions.length ? String(offset + 50) : null } : undefined;
-    return Response.json({ fiscalYear: year, target, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: { ...total(months), forecastGrossProfit: months.reduce((sum, month) => sum + month.forecastGrossProfit, 0) }, months, quarters, excludedProjects, incompleteProjects, details });
+    const weightedMargin = forecastContractValue > 0 ? forecastEstimatedGP / forecastContractValue : null;
+    const revenueRequirement = { weightedMargin, requiredRevenue: Number.isFinite(target) && target > 0 && weightedMargin > 0 ? target / weightedMargin : null, projectCount: forecastProjectCount, skippedCount: forecastSkippedCount };
+    return Response.json({ fiscalYear: year, target, revenueRequirement, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: { ...total(months), forecastGrossProfit: months.reduce((sum, month) => sum + month.forecastGrossProfit, 0) }, months, quarters, excludedProjects, incompleteProjects, details });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

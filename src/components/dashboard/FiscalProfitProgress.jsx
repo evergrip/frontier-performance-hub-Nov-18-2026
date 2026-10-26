@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Target } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,11 +7,19 @@ import { getFiscalYearLabel } from '@/components/utils/fiscalYear';
 import GrossProfitTargetProgress from '@/components/common/GrossProfitTargetProgress';
 import QuarterProfitProgress from '@/components/dashboard/QuarterProfitProgress';
 import QuarterProfitBreakdown from '@/components/dashboard/QuarterProfitBreakdown';
+import AnnualRevenueRequirement from '@/components/dashboard/AnnualRevenueRequirement';
 
 const money = value => `$${Math.round(value).toLocaleString()}`;
 
 export default function FiscalProfitProgress({ fiscalYear, userId, projectsUpdatedAt, goalsUpdatedAt }) {
   const [selectedQuarter, setSelectedQuarter] = useState(null);
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!userId) return;
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+    const unsubscribe = ['Project', 'Sale', 'FiscalGoal'].map(name => base44.entities[name].subscribe(refresh));
+    return () => unsubscribe.forEach(stop => stop());
+  }, [queryClient, userId]);
   const { data, isPending, error, refetch } = useQuery({
     queryKey: ['fiscalProfitProgress', fiscalYear, userId, projectsUpdatedAt, goalsUpdatedAt],
     queryFn: async () => {
@@ -28,6 +36,7 @@ export default function FiscalProfitProgress({ fiscalYear, userId, projectsUpdat
     <CardContent className="space-y-5">
       {isPending ? <p role="status" className="text-sm text-muted-foreground">Loading fiscal-year and quarterly Gross Profit…</p> : error ? <p role="alert" className="text-sm text-destructive">Unable to load Gross Profit progress. <button type="button" className="underline" onClick={() => refetch()}>Retry</button></p> : <>
         <GrossProfitTargetProgress actual={data.annual.grossProfit} target={data.target} />
+        <AnnualRevenueRequirement forecast={data.revenueRequirement} target={data.target} />
         <p className="text-sm text-muted-foreground">Allocated revenue {money(data.annual.revenue)} − allocated recorded costs {money(data.annual.costs)} = Gross Profit. As of {data.asOf} (Toronto).</p>
         {data.scope === 'own' && <p className="text-xs text-muted-foreground">Your assigned/contributed projects only, compared with the company target, matching your dashboard access.</p>}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">{data.quarters.map(quarter => <QuarterProfitProgress key={quarter.quarter} quarter={quarter} onOpen={() => setSelectedQuarter(quarter.quarter)} />)}</div>
