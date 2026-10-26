@@ -36,7 +36,7 @@ export default function FiscalProfitProgress({ fiscalYear, userId, projectsUpdat
     <CardContent className="space-y-5">
       {isPending ? <p role="status" className="text-sm text-muted-foreground">Loading fiscal-year and quarterly Gross Profit…</p> : error ? <p role="alert" className="text-sm text-destructive">Unable to load Gross Profit progress. <button type="button" className="underline" onClick={() => refetch()}>Retry</button></p> : <>
         <GrossProfitTargetProgress actual={data.annual.grossProfit} target={data.target} />
-        <AnnualRevenueRequirement forecast={data.revenueRequirement} target={data.target} />
+        <AnnualRevenueRequirement forecast={data.revenueRequirement} target={data.target} fiscalYear={fiscalYear} />
         <p className="text-sm text-muted-foreground">Allocated revenue {money(data.annual.revenue)} − allocated recorded costs {money(data.annual.costs)} = Gross Profit. As of {data.asOf} (Toronto).</p>
         {data.scope === 'own' && <p className="text-xs text-muted-foreground">Your assigned/contributed projects only, compared with the company target, matching your dashboard access.</p>}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">{data.quarters.map(quarter => <QuarterProfitProgress key={quarter.quarter} quarter={quarter} onOpen={() => setSelectedQuarter(quarter.quarter)} />)}</div>

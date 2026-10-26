@@ -8,7 +8,10 @@ export default async function(req) {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    const { fiscalYear, quarter, detailCursor, detailYear = false, assignedUserId } = await req.json();
+    const { fiscalYear, quarter, detailCursor, detailYear = false, assignedUserId, omittedCursor } = await req.json();
+    const omittedOffset = omittedCursor == null ? null : Number(omittedCursor);
+    if (omittedOffset !== null && (!Number.isInteger(omittedOffset) || omittedOffset < 0)) return Response.json({ error: 'Invalid omitted-project cursor' }, { status: 400 });
+    const omittedItems = [];
     const scopeUser = user.role === 'admin' && assignedUserId ? { id: String(assignedUserId), role: 'user' } : user;
     const requestedQuarter = detailYear ? 1 : quarter == null ? null : Number(quarter);
     const offset = detailCursor == null ? 0 : Number(detailCursor);
@@ -77,7 +80,15 @@ export default async function(req) {
             forecastContractValue += contractValue;
             forecastEstimatedGP += contractValue * margin / 100;
             forecastProjectCount++;
-          } else forecastSkippedCount++;
+          } else {
+            if (omittedOffset !== null && forecastSkippedCount >= omittedOffset && omittedItems.length < 50) {
+              const issues = [];
+              if (!Number.isFinite(contractValue) || contractValue <= 0) issues.push('Contract value must be greater than zero.');
+              if (!Number.isFinite(margin) || margin <= 0 || margin > 100) issues.push('Forecast margin must be greater than zero and at most 100%.');
+              omittedItems.push({ id: project.id, title: project.title, status: project.status, contract_value: project.contract_value ?? null, actual_margin: project.actual_margin ?? null, effective_margin: Number.isFinite(margin) ? margin : null, issues });
+            }
+            forecastSkippedCount++;
+          }
         }
         if (allocations.reduce((sum, item) => sum + Number(item.percentage), 0) < 99.9) incompleteProjects++;
         const revenue = Number(project.contract_value), costs = Number(project.actual_costs);
@@ -123,7 +134,8 @@ export default async function(req) {
     contributions.sort((a, b) => b.grossProfit - a.grossProfit || String(a.title).localeCompare(String(b.title)) || a.id.localeCompare(b.id));
     const details = requestedQuarter ? { items: contributions.slice(offset, offset + 50), total: contributions.length, has_more: offset + 50 < contributions.length, next_cursor: offset + 50 < contributions.length ? String(offset + 50) : null } : undefined;
     const weightedMargin = forecastContractValue > 0 ? forecastEstimatedGP / forecastContractValue : null;
-    const revenueRequirement = { weightedMargin, requiredRevenue: Number.isFinite(target) && target > 0 && weightedMargin > 0 ? target / weightedMargin : null, projectCount: forecastProjectCount, skippedCount: forecastSkippedCount };
+    const omittedProjects = omittedOffset === null ? undefined : { items: omittedItems, total: forecastSkippedCount, has_more: omittedOffset + 50 < forecastSkippedCount, next_cursor: omittedOffset + 50 < forecastSkippedCount ? omittedOffset + 50 : null };
+    const revenueRequirement = { omittedProjects, weightedMargin, requiredRevenue: Number.isFinite(target) && target > 0 && weightedMargin > 0 ? target / weightedMargin : null, projectCount: forecastProjectCount, skippedCount: forecastSkippedCount };
     return Response.json({ fiscalYear: year, target, revenueRequirement, asOf: today, scope: user.role === 'admin' ? 'company' : 'own', annual: { ...total(months), forecastGrossProfit: months.reduce((sum, month) => sum + month.forecastGrossProfit, 0) }, months, quarters, excludedProjects, incompleteProjects, details });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
