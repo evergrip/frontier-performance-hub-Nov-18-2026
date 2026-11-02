@@ -48,6 +48,8 @@ export default async function(req) {
       await syncGpTiming(base44, job, forecast);
     }
     const visible = start ? Array.from({ length: 12 }, (_, index) => { const week = offset + index; return info.rows[week] || { week: week + 1, date: new Date(dateTime(start) + week * WEEK).toISOString().slice(0, 10), amount: 0, remaining: info.unallocatedGP, manual: byDate.has(new Date(dateTime(start) + week * WEEK).toISOString().slice(0, 10)) }; }) : [];
-    return Response.json({ forecast: saved, draft: forecast, title: job.title, estimatedGP: job.estimatedGP, phase: job.project ? 'Construction' : 'Pre-construction', annualTarget: forecast.annual_gp_goal, weeklyGP: forecast.weekly_gp, goalYear: forecast.goal_fiscal_year, ...info, rows: visible, hasMore: !!start && dateTime(start) + (offset + 12) * WEEK < Date.UTC(2200, 11, 31), migratingLegacy: !existing && legacy.overrides.length > 0 });
+    const revenueValue = job.project?.contract_value ?? job.precon?.estimated_construction_budget;
+    const totalRevenue = revenueValue != null && revenueValue !== '' && Number.isFinite(Number(revenueValue)) ? Number(revenueValue) : null;
+    return Response.json({ totalRevenue, forecast: saved, draft: forecast, title: job.title, estimatedGP: job.estimatedGP, phase: job.project ? 'Construction' : 'Pre-construction', annualTarget: forecast.annual_gp_goal, weeklyGP: forecast.weekly_gp, goalYear: forecast.goal_fiscal_year, ...info, rows: visible, hasMore: !!start && dateTime(start) + (offset + 12) * WEEK < Date.UTC(2200, 11, 31), migratingLegacy: !existing && legacy.overrides.length > 0 });
   } catch (error) { return Response.json({ error: error.message }, { status: 400 }); }
 }

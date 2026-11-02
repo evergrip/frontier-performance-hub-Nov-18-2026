@@ -14,7 +14,7 @@ export default function WeeklyGpForecastDialog({ saleId, projectId, forecastId, 
   if (data) lastResult.current = data;
   const display = data || lastResult.current;
   const save = useMutation({ mutationFn: () => invoke({ action: 'save', revision: data?.forecast?.revision || 0 }), onSuccess: () => { ['weeklyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'sales', 'projects', 'gpForecastTable'].forEach(key => client.invalidateQueries({ queryKey: [key] })); onSaved?.(); onClose(); } });
-  return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}><DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}><DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
     <DialogHeader><DialogTitle>GP dollar allocations{data?.title ? ` · ${data.title}` : ''}</DialogTitle></DialogHeader>
     <form className="space-y-4" onSubmit={event => { event.preventDefault(); event.stopPropagation(); save.mutate(); }}>
       <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="probable-gp-start">Probable construction start</Label><Input id="probable-gp-start" type="date" required disabled={save.isPending || Object.keys(changes).length > 0} value={start || display?.draft?.probable_start_date || ''} onChange={event => { setStart(event.target.value); setOffset(0); }} /></div><div><Label htmlFor="gp-budget">Total job GP budget ($)</Label><Input id="gp-budget" type="number" min="0.01" step="0.01" required disabled={save.isPending} value={budget === '' ? display?.draft?.total_gp ?? '' : budget} onChange={event => setBudget(event.target.value)} /></div></div>
