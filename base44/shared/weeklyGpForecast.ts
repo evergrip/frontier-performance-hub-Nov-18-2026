@@ -5,6 +5,16 @@ export function dateTime(value) {
   return time;
 }
 export function effectiveSchedule(forecast) {
+  if (forecast.allocation_mode === 'monthly') {
+    let cumulative = 0;
+    const rows = [...(forecast.monthly_allocations || [])].sort((a, b) => a.period.localeCompare(b.period)).map((row, index) => {
+      const date = `${row.period}-01`; dateTime(date);
+      if (!Number.isFinite(Number(row.gp)) || Number(row.gp) < 0) throw new Error('Monthly GP must be non-negative dollars.');
+      cumulative += Number(row.gp);
+      return { week: index + 1, date, amount: Number(row.gp), revenue: Number(row.revenue || 0), remaining: Math.round((Number(forecast.total_gp) - cumulative) * 100) / 100, manual: true };
+    });
+    return { rows, weeks: rows.length, endDate: rows.at(-1)?.date || forecast.probable_start_date, allocatedGP: Math.round(cumulative * 100) / 100, unallocatedGP: Math.round((Number(forecast.total_gp) - cumulative) * 100) / 100 };
+  }
   const start = dateTime(forecast.probable_start_date), budget = Math.round(Number(forecast.total_gp) * 100), rate = Math.round(Number(forecast.weekly_gp) * 100);
   if (!Number.isSafeInteger(budget) || budget < 0 || !Number.isSafeInteger(rate) || rate < 0) throw new Error('GP dollars and weekly rate must be finite and non-negative.');
   const overrides = new Map();
@@ -35,6 +45,7 @@ export function weeklyRows(forecast, fromDate, toDate, offset = 0, limit = 50) {
   return effectiveSchedule(forecast).rows.filter(row => (!fromDate || row.date >= fromDate) && (!toDate || row.date <= toDate)).slice(offset, offset + limit);
 }
 export function monthlyShares(forecast) {
+  if (forecast.allocation_mode === 'monthly') return (forecast.monthly_allocations || []).filter(row => row.revenue > 0).map(row => ({ period: row.period, year: Number(row.period.slice(0, 4)), month: Number(row.period.slice(5, 7)), percentage: forecast.total_revenue > 0 ? row.revenue / forecast.total_revenue * 100 : 0 }));
   const amounts = new Map();
   for (const row of effectiveSchedule(forecast).rows) amounts.set(row.date.slice(0, 7), (amounts.get(row.date.slice(0, 7)) || 0) + row.amount);
   return [...amounts].filter(([, amount]) => amount > 0).map(([period, amount]) => ({ period, year: Number(period.slice(0, 4)), month: Number(period.slice(5, 7)), percentage: forecast.total_gp > 0 ? amount / forecast.total_gp * 100 : 0 }));

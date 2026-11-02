@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { effectiveSchedule, dateTime, WEEK } from '../../shared/weeklyGpForecast.ts';
 import { resolveGpJob, legacyOverrides, syncGpTiming, OPEN_PRECON } from '../../shared/gpAllocationJob.ts';
 import { allocationIssues } from '../../shared/verificationMath.ts';
+import { monthlyGpAllocations } from '../../shared/monthlyGpAllocations.ts';
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req), user = await base44.auth.me();
@@ -11,6 +12,7 @@ export default async function(req) {
     if (action === 'preview') return Response.json(effectiveSchedule(input.forecast));
     if (!input.saleId && !input.projectId && !input.forecastId) throw new Error('Select a job.');
     const job = await resolveGpJob(base44, input), existing = job.existing;
+    if (input.allocationMode === 'monthly' && ['load', 'save'].includes(action)) return await monthlyGpAllocations(base44, job, input, action);
     if (action === 'handoff') {
       if (existing && job.project) { const forecast = await base44.entities.GrossProfitForecast.update(existing.id, { job_key: job.key, project_id: job.project.id }); await syncGpTiming(base44, job, forecast); }
       return Response.json({ ok: true });
@@ -28,6 +30,7 @@ export default async function(req) {
     const byDate = new Map(overrides.map(row => [row.date, row.amount]));
     for (const [date, amount] of Object.entries(patch)) { if (amount === null) byDate.delete(date); else { if (amount === '' || !Number.isFinite(Number(amount))) throw new Error('Enter a valid GP dollar amount.'); byDate.set(date, Number(amount)); } }
     const forecast = { job_key: job.key, precon_sale_id: job.precon?.id || '', project_id: job.project?.id || '', title: job.title, probable_start_date: start, total_gp: budget, annual_gp_goal: job.project ? existing?.annual_gp_goal ?? target : target, goal_fiscal_year: job.project ? existing?.goal_fiscal_year ?? goalYear : goalYear, weekly_gp: job.project ? existing?.weekly_gp ?? (job.project.status === 'closed' ? 0 : target / 52) : target / 52, weekly_overrides: [...byDate].map(([date, amount]) => ({ date, amount })).sort((a, b) => a.date.localeCompare(b.date)), revision: (existing?.revision || 0) + 1 };
+    if (existing?.allocation_mode === 'monthly') Object.assign(forecast, { allocation_mode: 'monthly', monthly_allocations: existing.monthly_allocations, total_revenue: existing.total_revenue });
     const info = start ? effectiveSchedule(forecast) : { rows: [], weeks: 0, allocatedGP: 0, unallocatedGP: budget };
     if (action === 'validateCloseout') {
       if (!Number.isFinite(Number(input.finalTotalGP))) throw new Error('Enter valid final GP dollars.');

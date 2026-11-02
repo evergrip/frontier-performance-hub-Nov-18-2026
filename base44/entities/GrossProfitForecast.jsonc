@@ -22,6 +22,41 @@
       "type": "number",
       "minimum": 0
     },
+    "total_revenue": {
+      "type": "number",
+      "minimum": 0
+    },
+    "allocation_mode": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "monthly"
+      ]
+    },
+    "monthly_allocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "gp": {
+            "type": "number",
+            "minimum": 0
+          },
+          "revenue": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "period",
+          "gp",
+          "revenue"
+        ]
+      }
+    },
     "annual_gp_goal": {
       "type": "number",
       "minimum": 0

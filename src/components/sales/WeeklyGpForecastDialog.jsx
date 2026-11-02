@@ -1,28 +1,18 @@
-import React, { useState, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import WeeklyGpSchedule from '@/components/sales/WeeklyGpSchedule';
+import MonthlyGpAllocationEditor from '@/components/sales/MonthlyGpAllocationEditor';
 export default function WeeklyGpForecastDialog({ saleId, projectId, forecastId, onClose, onSaved }) {
-  const client = useQueryClient(), [start, setStart] = useState(''), [budget, setBudget] = useState(''), [offset, setOffset] = useState(0), [changes, setChanges] = useState({});
-  const invoke = async payload => { const response = await base44.functions.invoke('jobGpForecast', { saleId, projectId, forecastId, probableStartDate: start || undefined, totalGP: budget === '' ? undefined : Number(budget), overrideChanges: changes, offset, ...payload }); if (response.data.error) throw new Error(response.data.error); return response.data; };
-  const lastResult = useRef(null);
-  const { data, isPending, isFetching, error, refetch } = useQuery({ queryKey: ['weeklyGpForecast', saleId, projectId, forecastId, start, budget, offset, changes], queryFn: () => invoke({}), placeholderData: previous => previous, retry: false });
-  if (data) lastResult.current = data;
-  const display = data || lastResult.current;
-  const save = useMutation({ mutationFn: () => invoke({ action: 'save', revision: data?.forecast?.revision || 0 }), onSuccess: () => { ['weeklyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'sales', 'projects', 'gpForecastTable'].forEach(key => client.invalidateQueries({ queryKey: [key] })); onSaved?.(); onClose(); } });
-  return <Dialog open onOpenChange={open => { if (!open && !save.isPending) onClose(); }}><DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-    <DialogHeader><DialogTitle>GP dollar allocations{data?.title ? ` · ${data.title}` : ''}</DialogTitle></DialogHeader>
-    <form className="space-y-4" onSubmit={event => { event.preventDefault(); event.stopPropagation(); save.mutate(); }}>
-      <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="probable-gp-start">Probable construction start</Label><Input id="probable-gp-start" type="date" required disabled={save.isPending || Object.keys(changes).length > 0} value={start || display?.draft?.probable_start_date || ''} onChange={event => { setStart(event.target.value); setOffset(0); }} /></div><div><Label htmlFor="gp-budget">Total job GP budget ($)</Label><Input id="gp-budget" type="number" min="0.01" step="0.01" required disabled={save.isPending} value={budget === '' ? display?.draft?.total_gp ?? '' : budget} onChange={event => setBudget(event.target.value)} /></div></div>
-      {isFetching && <p role="status" className="text-xs text-muted-foreground">Calculating GP allocation…</p>}
-      {error && <p role="alert" className="text-destructive">{error.response?.data?.error || error.message} <Button type="button" variant="outline" onClick={() => { setStart(''); setBudget(''); setChanges({}); refetch(); }}>Reload saved schedule</Button></p>}
-      {display && <WeeklyGpSchedule data={display} changes={changes} offset={offset} onOffset={setOffset} onOverride={(date, amount) => setChanges(previous => ({ ...previous, [date]: amount }))} disabled={save.isPending} />}
-      {save.error && <p role="alert" className="text-destructive">{save.error.response?.data?.error || save.error.message}</p>}
-      <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={save.isPending} onClick={onClose}>Cancel</Button><Button type="submit" disabled={isPending || isFetching || !!error || save.isPending || !(data?.draft?.total_gp > 0) || !data?.draft?.probable_start_date}>{save.isPending ? 'Saving…' : 'Save GP allocations'}</Button></div>
-    </form>
+  const identifiers = { saleId, projectId, forecastId };
+  const { data, isPending, error, refetch } = useQuery({ queryKey: ['monthlyGpForecast', saleId, projectId, forecastId], queryFn: async () => {
+    const response = await base44.functions.invoke('jobGpForecast', { ...identifiers, allocationMode: 'monthly' });
+    if (response.data.error) throw new Error(response.data.error);
+    return response.data;
+  }, retry: false });
+  return <Dialog open onOpenChange={open => { if (!open) onClose(); }}><DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader><DialogTitle>Monthly GP & revenue allocations{data?.title ? ` · ${data.title}` : ''}</DialogTitle></DialogHeader>
+    {isPending ? <p role="status">Loading monthly allocations…</p> : error ? <div role="alert" className="space-y-3"><p className="text-destructive">{error.response?.data?.error || error.message}</p><Button type="button" variant="outline" onClick={() => refetch()}>Reload allocations</Button></div> : <MonthlyGpAllocationEditor data={data} identifiers={identifiers} onClose={onClose} onSaved={onSaved} />}
   </DialogContent></Dialog>;
 }

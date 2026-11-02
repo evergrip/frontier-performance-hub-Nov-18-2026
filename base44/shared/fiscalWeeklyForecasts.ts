@@ -39,5 +39,5 @@ export async function fiscalWeeklyForecasts(base44, user, start, end) {
     }
     cursor = page.has_more ? page.next_cursor : null;
   } while (cursor);
-  return { rows, overriddenProjectIds };
+  return { rows, overriddenProjectIds, monthlyProjectIds: new Set(rows.filter(row => row.forecast.allocation_mode === 'monthly').map(row => row.forecast.project_id).filter(Boolean)) };
 }

@@ -98,8 +98,8 @@ export default async function(req) {
         revenueProjectIds.add(project.id);
         for (const row of profitMonths) {
           row.allocatedRevenue = revenue * row.percentage / 100;
-          byPeriod[row.period].allocatedRevenue += row.allocatedRevenue;
-          if (weeklyForecast.overriddenProjectIds.has(project.id)) { row.forecastGrossProfit = 0; row.forecastMissing = false; row.forecastBasis = 'Weekly GP schedule (shown separately)'; }
+          if (!weeklyForecast.monthlyProjectIds.has(project.id)) byPeriod[row.period].allocatedRevenue += row.allocatedRevenue;
+          if (weeklyForecast.overriddenProjectIds.has(project.id)) { row.forecastGrossProfit = 0; row.forecastMissing = false; row.forecastBasis = 'Saved GP dollar schedule (shown separately)'; }
           const month = byPeriod[row.period];
           month.revenue += row.revenue;
           month.costs += row.costs;
@@ -116,18 +116,20 @@ export default async function(req) {
     } while (cursor);
     for (const entry of weeklyForecast.rows) {
       const revenueMonths = Object.fromEntries(months.map(month => [month.period, 0]));
-      if (Number.isFinite(Number(entry.revenueValue)) && !allocationIssues(entry.revenueAllocations).length) {
+      if (entry.forecast.allocation_mode === 'monthly') {
+        for (const allocation of entry.forecast.monthly_allocations || []) if (byPeriod[allocation.period]) revenueMonths[allocation.period] += Number(allocation.revenue || 0);
+      } else if (Number.isFinite(Number(entry.revenueValue)) && !allocationIssues(entry.revenueAllocations).length) {
         for (const allocation of entry.revenueAllocations) {
           const period = periodOf(allocation);
           if (byPeriod[period]) revenueMonths[period] += Number(entry.revenueValue) * Number(allocation.percentage) / 100;
         }
       }
-      if (!revenueProjectIds.has(entry.forecast.project_id)) for (const month of months) month.allocatedRevenue += revenueMonths[month.period];
+      if (entry.forecast.allocation_mode === 'monthly' || !revenueProjectIds.has(entry.forecast.project_id)) for (const month of months) month.allocatedRevenue += revenueMonths[month.period];
       for (const week of entry.weeks) byPeriod[week.date.slice(0, 7)].forecastGrossProfit += week.amount;
       if (requestedQuarter) {
         const weeks = entry.weeks.filter(week => week.date.slice(0, 7) >= detailStart && week.date.slice(0, 7) <= detailEnd);
         const existingRow = entry.forecast.project_id ? contributions.find(row => row.id === entry.forecast.project_id) : null;
-        const fields = { revenueMonths, allocatedRevenue: Object.entries(revenueMonths).filter(([period]) => period >= detailStart && period <= detailEnd).reduce((sum, [, value]) => sum + value, 0), forecastId: entry.forecast.id, projectId: entry.forecast.project_id, kind: 'weekly_forecast', title: entry.forecast.title, phase: entry.phase, totalGP: entry.forecast.total_gp, weeklyGP: entry.forecast.weekly_gp, probableStartDate: entry.forecast.probable_start_date, forecastGrossProfit: weeks.reduce((sum, week) => sum + week.amount, 0), weeks };
+        const fields = { revenueMonths, allocatedRevenue: Object.entries(revenueMonths).filter(([period]) => period >= detailStart && period <= detailEnd).reduce((sum, [, value]) => sum + value, 0), forecastId: entry.forecast.id, projectId: entry.forecast.project_id, kind: 'weekly_forecast', allocationMode: entry.forecast.allocation_mode || 'weekly', title: entry.forecast.title, phase: entry.phase, totalGP: entry.forecast.total_gp, weeklyGP: entry.forecast.weekly_gp, probableStartDate: entry.forecast.probable_start_date, forecastGrossProfit: weeks.reduce((sum, week) => sum + week.amount, 0), weeks };
         if (existingRow) Object.assign(existingRow, fields);
         else if (weeks.length) contributions.push({ id: entry.forecast.project_id || `forecast-${entry.forecast.id}`, grossProfit: 0, ...fields });
       }
