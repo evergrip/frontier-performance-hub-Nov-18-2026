@@ -12,13 +12,14 @@ export default function MonthlyGpAllocationEditor({ data, identifiers, onClose, 
   const allocatedGP = rows.reduce((sum, row) => sum + Number(row.gp || 0), 0), allocatedRevenue = rows.reduce((sum, row) => sum + Number(row.revenue || 0), 0);
   const overBudget = allocatedGP > Number(gp) + 0.01 || allocatedRevenue > Number(revenue) + 0.01;
   const save = useMutation({ mutationFn: async () => {
-    const response = await base44.functions.invoke('jobGpForecast', { ...identifiers, action: 'save', allocationMode: 'monthly', totalGP: Number(gp), totalRevenue: Number(revenue), monthlyAllocations: rows, revision: data.forecast?.revision || 0 });
+    const response = await base44.functions.invoke('jobGpForecast', { ...identifiers, forecastScope: data.forecastScope || identifiers.forecastScope, action: 'save', allocationMode: 'monthly', totalGP: Number(gp), totalRevenue: Number(revenue), monthlyAllocations: rows, revision: data.forecast?.revision || 0 });
     if (response.data.error) throw new Error(response.data.error);
     return response.data;
   }, onSuccess: () => { ['weeklyGpForecast', 'monthlyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'sales', 'projects', 'gpForecastTable'].forEach(key => client.invalidateQueries({ queryKey: [key] })); onSaved?.(); onClose(); } });
   return <form className="space-y-4" onSubmit={e => { e.preventDefault(); e.stopPropagation(); save.mutate(); }}>
     <p className="text-sm text-muted-foreground">{data.phase}. Set GP and revenue dollars independently for each month. These are planning estimates, not accounting approvals.</p>
     <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="monthly-gp-budget">Total job GP budget ($)</Label><Input id="monthly-gp-budget" type="number" required min="0" step="0.01" value={gp} disabled={save.isPending} onChange={e => setGp(e.target.value)} /></div><div><Label htmlFor="monthly-revenue-budget">Total forecast revenue ($)</Label><Input id="monthly-revenue-budget" type="number" required min="0" step="0.01" value={revenue} disabled={save.isPending} onChange={e => setRevenue(e.target.value)} /></div></div>
+    {data.forecastScope === 'precon' && <p className="text-xs text-muted-foreground">Revenue starts from the pre-con contract value. Enter the expected GP for pre-con services only; construction budgets and allocations remain separate.</p>}
     {data.migratingWeekly && <p className="text-xs text-muted-foreground">Existing weekly allocations are grouped into months without changing their totals. Save to switch this job to monthly allocations.</p>}
     <MonthlyAllocationRows rows={rows} onChange={setRows} disabled={save.isPending} />
     <div className="grid gap-2 text-sm sm:grid-cols-2"><div><p>Allocated GP: <strong>{money(allocatedGP)}</strong></p><p>Unallocated GP: {money(Number(gp) - allocatedGP)}</p></div><div><p>Allocated revenue: <strong>{money(allocatedRevenue)}</strong></p><p>Unallocated revenue: {money(Number(revenue) - allocatedRevenue)}</p></div></div>

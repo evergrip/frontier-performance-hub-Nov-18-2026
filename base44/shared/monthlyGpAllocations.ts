@@ -8,7 +8,7 @@ function initialRows(job, totalGP, totalRevenue, start) {
   const grouped = new Map();
   const month = period => { if (!grouped.has(period)) grouped.set(period, { period, gp: 0, revenue: 0 }); return grouped.get(period); };
   if (job.existing) for (const row of effectiveSchedule(job.existing).rows) month(row.date.slice(0, 7)).gp += row.amount;
-  const allocations = job.project?.monthly_revenue_allocations || job.precon?.monthly_revenue_allocations || [];
+  const allocations = job.forecastScope === 'precon' ? [] : job.project?.monthly_revenue_allocations || job.precon?.monthly_revenue_allocations || [];
   for (const row of allocations) {
     const period = periodOf(row);
     if (!period || !valid(row.percentage) || Number(row.percentage) < 0) throw new Error('Correct the existing monthly allocation dates or percentages first.');
@@ -29,7 +29,7 @@ function initialRows(job, totalGP, totalRevenue, start) {
 }
 export async function monthlyGpAllocations(base44, job, input, action) {
   const existing = job.existing;
-  const sourceRevenue = [job.project?.contract_value, job.sale?.sale_type === 'construction' ? job.sale.contract_value : null, job.precon?.estimated_construction_budget].find(value => valid(value) && Number(value) > 0);
+  const sourceRevenue = job.forecastScope === 'precon' ? job.precon.contract_value : [job.project?.contract_value, job.sale?.sale_type === 'construction' ? job.sale.contract_value : null, job.precon?.estimated_construction_budget].find(value => valid(value) && Number(value) > 0);
   const totalRevenue = cents(input.totalRevenue ?? existing?.total_revenue ?? sourceRevenue ?? 0);
   const totalGP = cents(input.totalGP ?? existing?.total_gp ?? Math.max(0, job.estimatedGP));
   if (!Number.isFinite(totalGP) || totalGP < 0 || !Number.isFinite(totalRevenue) || totalRevenue < 0) throw new Error('Enter non-negative GP and revenue budgets.');
@@ -47,10 +47,10 @@ export async function monthlyGpAllocations(base44, job, input, action) {
   const forecast = { job_key: job.key, precon_sale_id: job.precon?.id || '', project_id: job.project?.id || '', title: job.title, probable_start_date: monthly[0].period + '-01', total_gp: totalGP, total_revenue: totalRevenue, allocation_mode: 'monthly', monthly_allocations: monthly, weekly_overrides: [], weekly_gp: existing?.weekly_gp || 0, annual_gp_goal: existing?.annual_gp_goal || 0, goal_fiscal_year: goalYear, revision: (existing?.revision || 0) + 1 };
   let saved = existing;
   if (action === 'save') {
-    if (!job.project && !OPEN_PRECON.includes(job.precon.status)) throw new Error('Only open pre-con jobs or existing construction projects can be allocated.');
+    if (job.forecastScope === 'precon' ? ![...OPEN_PRECON, 'closed_won'].includes(job.precon.status) : !job.project && !OPEN_PRECON.includes(job.precon.status)) throw new Error('This job is not eligible for allocations.');
     if (Number(input.revision ?? 0) !== Number(existing?.revision || 0)) return Response.json({ error: 'Another editor changed this job. Reload before saving.' }, { status: 409 });
     saved = existing ? await base44.entities.GrossProfitForecast.update(existing.id, forecast) : (await base44.entities.GrossProfitForecast.upsert([forecast], { key: 'job_key' })).records[0];
     await syncGpTiming(base44, job, forecast);
   }
-  return Response.json({ forecast: saved, draft: forecast, title: job.title, phase: job.project ? 'Construction' : 'Pre-construction', allocatedGP, allocatedRevenue, unallocatedGP: cents(totalGP - allocatedGP), unallocatedRevenue: cents(totalRevenue - allocatedRevenue), migratingWeekly: !!existing && existing.allocation_mode !== 'monthly' });
+  return Response.json({ forecast: saved, draft: forecast, title: job.title, phase: job.forecastScope === 'precon' ? 'Pre-construction services' : job.project ? 'Construction' : 'Future construction', forecastScope: job.forecastScope || 'construction', allocatedGP, allocatedRevenue, unallocatedGP: cents(totalGP - allocatedGP), unallocatedRevenue: cents(totalRevenue - allocatedRevenue), migratingWeekly: !!existing && existing.allocation_mode !== 'monthly' });
 }

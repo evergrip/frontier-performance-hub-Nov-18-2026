@@ -1592,7 +1592,7 @@ export default function Sales() {
         }}
       />
 
-      {gpForecastSaleId && <WeeklyGpForecastDialog key={gpForecastSaleId} saleId={gpForecastSaleId} onClose={() => setGpForecastSaleId(null)} />}
+      {gpForecastSaleId && <WeeklyGpForecastDialog key={`${gpForecastSaleId.saleId}-${gpForecastSaleId.forecastScope}`} saleId={gpForecastSaleId.saleId} forecastScope={gpForecastSaleId.forecastScope} onClose={() => setGpForecastSaleId(null)} />}
 
       {/* Pre-Con Allocation Dialog */}
       <PreconAllocationDialog
@@ -1657,7 +1657,8 @@ export default function Sales() {
 
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2">
-                {!['closed_won', 'closed_lost'].includes(selectedSale.status) && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId(selectedSale.id); }}>Forecast monthly GP</Button>}
+                {selectedSale.status !== 'closed_lost' && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId({ saleId: selectedSale.id, forecastScope: 'precon' }); }}>Allocate pre-con monthly GP</Button>}
+                {!['closed_won', 'closed_lost'].includes(selectedSale.status) && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId({ saleId: selectedSale.id, forecastScope: 'construction' }); }}>Forecast construction monthly GP</Button>}
                 {/* Always allow editing if costs aren't finalized */}
                 {(!['closed_won', 'closed_lost'].includes(selectedSale.status) || !selectedSale.precon_costs_finalized) && (
                   <Button size="sm" variant="outline" className="text-xs" onClick={() => { setDetailDialogOpen(false); setEditingSale(selectedSale); setEditSaleDialogOpen(true); }}>

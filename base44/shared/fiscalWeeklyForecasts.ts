@@ -11,7 +11,7 @@ export async function fiscalWeeklyForecasts(base44, user, start, end) {
     const page = await base44.entities.GrossProfitForecast.filter({}, { sort: '-updated_date', limit: 100, cursor });
     const preconIds = [...new Set(page.items.map(row => row.precon_sale_id).filter(Boolean))], projectIds = [...new Set(page.items.map(row => row.project_id).filter(Boolean))];
     const [precons, children] = await Promise.all([
-      preconIds.length ? matching(base44.entities.Sale, { id: { $in: preconIds } }, ['status', 'title', 'include_in_forecast', 'assigned_to', 'sale_contributors', 'estimated_construction_budget', 'monthly_revenue_allocations']) : [],
+      preconIds.length ? matching(base44.entities.Sale, { id: { $in: preconIds } }, ['status', 'title', 'include_in_forecast', 'assigned_to', 'sale_contributors', 'contract_value', 'estimated_construction_budget', 'monthly_revenue_allocations']) : [],
       preconIds.length ? matching(base44.entities.Sale, { linked_precon_sale_id: { $in: preconIds }, sale_type: 'construction' }, ['linked_precon_sale_id', 'assigned_to', 'sale_contributors']) : [],
     ]);
     const projectConditions = [];
@@ -24,8 +24,15 @@ export async function fiscalWeeklyForecasts(base44, user, start, end) {
     const saleMap = Object.fromEntries([...children, ...otherSales].map(row => [row.id, row])), preconMap = Object.fromEntries(precons.map(row => [row.id, row]));
     const owns = sale => sale?.assigned_to === user.id || sale?.sale_contributors?.some(person => person.user_id === user.id);
     for (const forecast of page.items) {
-      const project = projects.find(row => row.id === forecast.project_id) || projects.find(row => childrenById[row.sale_id]?.linked_precon_sale_id === forecast.precon_sale_id);
+      const preconServices = forecast.job_key?.startsWith('precon-services:');
+      const project = preconServices ? null : projects.find(row => row.id === forecast.project_id) || projects.find(row => childrenById[row.sale_id]?.linked_precon_sale_id === forecast.precon_sale_id);
       const precon = preconMap[forecast.precon_sale_id];
+      if (preconServices) {
+        if (!precon || ![...OPEN_PRECON, 'closed_won'].includes(precon.status) || precon.include_in_forecast === false || user.role !== 'admin' && !owns(precon)) continue;
+        const lastDay = new Date(Date.UTC(Number(end.slice(0, 4)), Number(end.slice(5, 7)), 0)).getUTCDate();
+        rows.push({ forecast: { ...forecast, project_id: '', title: precon.title }, weeks: weeklyRows(forecast, `${start}-01`, `${end}-${lastDay}`, 0, 54), revenueValue: precon.contract_value, revenueAllocations: [], phase: 'Pre-construction services' });
+        continue;
+      }
       if (project && seenProjects.has(project.id) || forecast.precon_sale_id && seenPrecons.has(forecast.precon_sale_id)) continue;
       if (project) seenProjects.add(project.id);
       if (forecast.precon_sale_id) seenPrecons.add(forecast.precon_sale_id);

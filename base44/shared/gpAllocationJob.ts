@@ -1,7 +1,9 @@
 import { dateTime, WEEK, monthlyShares } from './weeklyGpForecast.ts';
+import { resolvePreconGpJob } from './preconGpJob.ts';
 export const OPEN_PRECON = ['feasibility', 'design_material_selections', 'engineering_permits', 'pending_construction_sale'];
 export async function resolveGpJob(base44, input) {
   const pointed = input.forecastId ? await base44.entities.GrossProfitForecast.get(input.forecastId) : null;
+  if (input.forecastScope === 'precon' || pointed?.job_key?.startsWith('precon-services:')) return await resolvePreconGpJob(base44, input, pointed);
   let project = input.projectId ? await base44.entities.Project.get(input.projectId) : null;
   let sale = project?.sale_id ? await base44.entities.Sale.get(project.sale_id) : null;
   const preconId = sale?.linked_precon_sale_id || input.saleId || pointed?.precon_sale_id;
@@ -20,7 +22,7 @@ export async function resolveGpJob(base44, input) {
   const conditions = [{ job_key: key }];
   if (precon) conditions.push({ precon_sale_id: precon.id });
   if (project) conditions.push({ project_id: project.id });
-  const matches = await base44.entities.GrossProfitForecast.filter({ $or: conditions }, { sort: '-updated_date', limit: 1 });
+  const matches = await base44.entities.GrossProfitForecast.filter({ $or: conditions, job_key: { $ne: `precon-services:${precon?.id || ''}` } }, { sort: '-updated_date', limit: 1 });
   const existing = matches.items[0] || null;
   const margin = project?.actual_margin ?? sale?.estimated_margin ?? precon?.estimated_margin;
   const estimatedGP = project ? project.status === 'closed' ? Number(project.contract_value || 0) - Number(project.actual_costs || 0) : Number(project.contract_value || 0) * Number(margin || 0) / 100 : Number(precon.estimated_construction_budget || 0) * Number(precon.estimated_margin || 0) / 100;
@@ -48,6 +50,7 @@ export function legacyOverrides(allocations, totalGP) {
   return { start, overrides };
 }
 export async function syncGpTiming(base44, job, forecast) {
+  if (job.forecastScope === 'precon') return;
   const entity = job.project ? base44.entities.Project : base44.entities.Sale;
   await entity.update(job.project?.id || job.precon.id, { monthly_revenue_allocations: monthlyShares(forecast) });
 }
