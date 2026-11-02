@@ -1657,7 +1657,7 @@ export default function Sales() {
 
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2">
-                {!['closed_won', 'closed_lost'].includes(selectedSale.status) && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId(selectedSale.id); }}>Forecast weekly GP</Button>}
+                {!['closed_won', 'closed_lost'].includes(selectedSale.status) && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId(selectedSale.id); }}>Forecast monthly GP</Button>}
                 {/* Always allow editing if costs aren't finalized */}
                 {(!['closed_won', 'closed_lost'].includes(selectedSale.status) || !selectedSale.precon_costs_finalized) && (
                   <Button size="sm" variant="outline" className="text-xs" onClick={() => { setDetailDialogOpen(false); setEditingSale(selectedSale); setEditSaleDialogOpen(true); }}>
