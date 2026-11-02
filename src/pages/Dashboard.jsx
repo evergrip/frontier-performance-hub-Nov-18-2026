@@ -26,6 +26,7 @@ import CEOGrossMarginDialog from '../components/dashboard/CEOGrossMarginDialog';
 import ProjectTypeExportButton from '../components/dashboard/ProjectTypeExportButton';
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
 import { calculateAnnualProfitForecast } from '@/lib/profitForecast';
+import useMonthlyPeriodTotals from '@/hooks/useMonthlyPeriodTotals';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -205,6 +206,8 @@ export default function Dashboard() {
   const scopedSales = useMemo(() => isAdmin ? sales : sales.filter(isUserSale), [sales, user, isAdmin]);
   const scopedProjects = useMemo(() => isAdmin ? projects : projects.filter(isUserProject), [projects, sales, user, isAdmin]);
   const scopedLeads = useMemo(() => isAdmin ? leads : leads.filter(isUserLead), [leads, user, isAdmin]);
+  const monthlyTotalsQuery = useMonthlyPeriodTotals(scopedProjects, dateRange, user?.id);
+  const monthlyTotals = monthlyTotalsQuery.data || {};
 
   // Memoized filtered data (date range applied on top of scoped data)
   const filteredSales = useMemo(() => scopedSales.filter(sale => {
@@ -237,7 +240,7 @@ export default function Dashboard() {
     
     const preconRevenue = closedSales.filter(s => s.sale_type === 'preconstruction').reduce((sum, s) => sum + (s.contract_value || 0), 0);
     
-    const constructionFinancials = scopedProjects.filter(p => p.project_type === 'construction').map(p => ({ project: p, ...projectPeriodFinancials(p, dateRange, false, fiscalYearStartMonth) }));
+    const constructionFinancials = scopedProjects.filter(p => p.project_type === 'construction').map(p => ({ project: p, ...projectPeriodFinancials(p, dateRange, false, fiscalYearStartMonth, monthlyTotals[p.id]) }));
     const activeRecognizedRevenue = constructionFinancials.filter(f => f.project.status !== 'closed').reduce((sum, f) => sum + f.revenue, 0);
     const constructionRevenue = constructionFinancials.reduce((sum, f) => sum + f.revenue, 0);
     const totalRevenue = preconRevenue + constructionRevenue;
@@ -282,7 +285,7 @@ export default function Dashboard() {
       activeRecognizedRevenue,
       avgProjectSize, medianProjectSize, closedConstructionProjects
     };
-  }, [filteredSales, filteredProjects, filteredLeads, scopedProjects, scopedSales, scopedLeads, dateRange]);
+  }, [filteredSales, filteredProjects, filteredLeads, scopedProjects, scopedSales, scopedLeads, dateRange, monthlyTotals]);
 
   const currentFiscalGoal = useMemo(() => fiscalGoals.find(g => Number(g.fiscal_year) === Number(fiscalYear)), [fiscalGoals, fiscalYear]);
   // Full fiscal-year range (Oct 1 – Sep 30 by default) used by the annual forecast, goal progress and capacity
@@ -404,7 +407,7 @@ export default function Dashboard() {
   }, [dateRange, scopedSales, scopedProjects]);
 
   // Loading skeleton
-  if (isLoading) {
+  if (isLoading || monthlyTotalsQuery.isPending) {
     return (
       <div className="max-w-7xl mx-auto space-y-6">
         <div>
@@ -421,6 +424,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  if (monthlyTotalsQuery.error) return <div role="alert" className="space-y-3"><p className="text-destructive">Could not load monthly financial allocations: {monthlyTotalsQuery.error.message}</p><Button variant="outline" onClick={() => monthlyTotalsQuery.refetch()}>Reload financials</Button></div>;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -610,6 +615,7 @@ export default function Dashboard() {
         leads={scopedLeads}
         clients={clients}
         dateRange={dateRange}
+        monthlyTotals={monthlyTotals}
         getSaleEffectiveDate={getSaleEffectiveDate}
         getProjectEffectiveDate={getProjectEffectiveDate}
       />

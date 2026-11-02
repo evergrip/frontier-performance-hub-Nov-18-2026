@@ -18,6 +18,7 @@ export default function MetricDrilldownDialog({
   leads, 
   clients,
   dateRange,
+  monthlyTotals,
   getSaleEffectiveDate,
   getProjectEffectiveDate
 }) {
@@ -57,7 +58,7 @@ export default function MetricDrilldownDialog({
   };
 
   const config = useMemo(() => {
-    if (['constructionRevenue', 'totalRevenue', 'grossProfit', 'margins'].includes(metricKey)) return PeriodMetricConfig({ metricKey, projects, sales, dateRange, getSaleEffectiveDate, getClientName });
+    if (['constructionRevenue', 'totalRevenue', 'grossProfit', 'margins'].includes(metricKey)) return PeriodMetricConfig({ metricKey, projects, sales, dateRange, monthlyTotals, getSaleEffectiveDate, getClientName });
     switch (metricKey) {
       case 'preconRevenue': {
         const closedPrecon = sales
@@ -242,7 +243,7 @@ export default function MetricDrilldownDialog({
       default:
         return null;
     }
-  }, [metricKey, sales, projects, leads, clients, dateRange]);
+  }, [metricKey, sales, projects, leads, clients, dateRange, monthlyTotals]);
 
   if (!config) return null;
 
