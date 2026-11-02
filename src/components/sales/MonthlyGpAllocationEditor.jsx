@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import GpAllocationBudgetInputs from '@/components/sales/GpAllocationBudgetInputs';
 import { Button } from '@/components/ui/button';
 import MonthlyAllocationRows from '@/components/sales/MonthlyAllocationRows';
 const money = value => `$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -18,7 +17,7 @@ export default function MonthlyGpAllocationEditor({ data, identifiers, onClose, 
   }, onSuccess: () => { ['weeklyGpForecast', 'monthlyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'sales', 'projects', 'gpForecastTable'].forEach(key => client.invalidateQueries({ queryKey: [key] })); onSaved?.(); onClose(); } });
   return <form className="space-y-4" onSubmit={e => { e.preventDefault(); e.stopPropagation(); save.mutate(); }}>
     <p className="text-sm text-muted-foreground">{data.phase}. Set GP and revenue dollars independently for each month. These are planning estimates, not accounting approvals.</p>
-    <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="monthly-gp-budget">Total job GP budget ($)</Label><Input id="monthly-gp-budget" type="number" required min="0" step="0.01" value={gp} disabled={save.isPending} onChange={e => setGp(e.target.value)} /></div><div><Label htmlFor="monthly-revenue-budget">Total forecast revenue ($)</Label><Input id="monthly-revenue-budget" type="number" required min="0" step="0.01" value={revenue} disabled={save.isPending} onChange={e => setRevenue(e.target.value)} /></div></div>
+    <GpAllocationBudgetInputs gp={gp} revenue={revenue} onGpChange={setGp} onRevenueChange={setRevenue} disabled={save.isPending} />
     {data.forecastScope === 'precon' && <p className="text-xs text-muted-foreground">Revenue starts from the pre-con contract value. Enter the expected GP for pre-con services only; construction budgets and allocations remain separate.</p>}
     {data.migratingWeekly && <p className="text-xs text-muted-foreground">Existing weekly allocations are grouped into months without changing their totals. Save to switch this job to monthly allocations.</p>}
     <MonthlyAllocationRows rows={rows} onChange={setRows} disabled={save.isPending} />
