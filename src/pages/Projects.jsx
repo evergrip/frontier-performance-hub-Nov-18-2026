@@ -27,6 +27,7 @@ import GpAllocationLauncher from '@/components/projects/GpAllocationLauncher';
 import ProjectCloseoutSummary from '@/components/projects/ProjectCloseoutSummary';
 import ProjectProfitActions from '@/components/projects/ProjectProfitActions';
 import FbgInventorySection from '@/components/projects/FbgInventorySection';
+import MoveProjectToInventoryDialog from '@/components/projects/MoveProjectToInventoryDialog';
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import { allocationDate } from '@/components/utils/projectPeriod';
@@ -75,6 +76,7 @@ export default function Projects() {
   const [gmReportProject, setGmReportProject] = useState(null);
   const [gmHistoryOpen, setGmHistoryOpen] = useState(false);
   const [gmHistoryProject, setGmHistoryProject] = useState(null);
+  const [inventoryMoveProject, setInventoryMoveProject] = useState(null);
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects', 'constructionBoard'],
@@ -680,6 +682,7 @@ export default function Projects() {
                                      </div>
                                    </div>
                                    <p className="text-[10px] mt-0.5">GP allocation schedule available in project details</p>
+                                   <Button type="button" size="sm" variant="outline" className="mt-2 text-xs" onClick={e => { e.stopPropagation(); setInventoryMoveProject(project); }}>Move to FBG Inventory</Button>
                                     {(() => {
                                       const financials = getProjectGrossProfit(project, sales.find(sale => sale.id === project.sale_id));
                                       return <p className="text-[10px] text-emerald-700 mt-0.5">GP ${Math.round(financials.grossProfit).toLocaleString()} · GM {financials.grossMargin.toFixed(1)}%</p>;
@@ -798,6 +801,7 @@ export default function Projects() {
       </Tabs>
 
       <FbgInventorySection user={currentUser} />
+      {inventoryMoveProject && <MoveProjectToInventoryDialog key={inventoryMoveProject.id} project={inventoryMoveProject} onClose={() => setInventoryMoveProject(null)} onMoved={() => { setSelectedProject(null); setEditDialogOpen(false); }} />}
 
       {/* Construction Forecast */}
       <ConstructionForecast
@@ -989,6 +993,7 @@ export default function Projects() {
                     <CheckCircle className="w-3 h-3 mr-1" /> Close Out Project
                   </Button>
                 )}
+                <Button type="button" size="sm" variant="outline" className="text-xs" onClick={() => { setEditDialogOpen(false); setInventoryMoveProject(selectedProject); }}>Move to FBG Inventory</Button>
                 {selectedProject.sale_id && (
                   <Button type="button" size="sm" variant="outline" className="text-xs border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => { setEditDialogOpen(false); setAllocationDialogOpen(false); setSendBackPhase(''); setSendBackDialogOpen(true); }}>
                     <ChevronLeft className="w-3 h-3 mr-1" /> Send Back to Pre-Con
