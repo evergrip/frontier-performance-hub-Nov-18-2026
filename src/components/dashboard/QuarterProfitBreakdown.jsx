@@ -40,6 +40,6 @@ export default function QuarterProfitBreakdown({ fiscalYear, quarter, userId, on
       {editing && editing.mode !== 'weekly' && projectQuery.error && <p role="alert" className="text-destructive">Unable to open project. <Button variant="outline" onClick={() => projectQuery.refetch()}>Retry</Button></p>}
     </DialogContent></Dialog>
     {editing?.mode === 'weekly' && <WeeklyGpForecastDialog key={editing.id} forecastId={editing.id} onClose={() => setEditing(null)} onSaved={refresh} />}
-    {editing && editing.mode !== 'weekly' && projectQuery.data && (editing.mode === 'financials' ? <QuarterProfitFinancialEditor key={editing.id} project={projectQuery.data} onClose={() => setEditing(null)} onSaved={refresh} /> : <ProjectAllocationDialog open project={projectQuery.data} companySettings={{ fiscal_year_start_month: 10 }} onOpenChange={open => { if (!open) setEditing(null); }} onSaved={refresh} />)}
+    {editing && editing.mode !== 'weekly' && projectQuery.data && (editing.mode === 'financials' ? <QuarterProfitFinancialEditor key={editing.id} project={projectQuery.data} onClose={() => setEditing(null)} onSaved={refresh} /> : editing.mode === 'gp' ? <WeeklyGpForecastDialog key={editing.id} projectId={editing.id} onClose={() => setEditing(null)} onSaved={refresh} /> : <ProjectAllocationDialog open project={projectQuery.data} companySettings={{ fiscal_year_start_month: 10 }} onOpenChange={open => { if (!open) setEditing(null); }} onSaved={refresh} />)}
   </>;
 }

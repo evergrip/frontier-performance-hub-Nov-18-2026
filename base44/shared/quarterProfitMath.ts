@@ -22,5 +22,5 @@ export function projectProfitMonths(project, sale, allocations, currentPeriod) {
 
 export function contributionForQuarter(project, rows) {
   const sum = field => rows.reduce((total, row) => total + row[field], 0);
-  return { id: project.id, title: project.title, status: project.status, contractValue: Number(project.contract_value), actualCosts: Number(project.actual_costs), percentage: sum('percentage'), reportedPercentage: sum('reportedPercentage'), revenue: sum('revenue'), costs: sum('costs'), grossProfit: sum('grossProfit'), forecastGrossProfit: sum('forecastGrossProfit'), forecastBasis: rows[0].forecastBasis, margin: rows[0].margin, forecastMissing: rows.some(row => row.forecastMissing), months: rows };
+  return { id: project.id, title: project.title, status: project.status, project, recognitionMode: project.recognition_mode || 'standard', contractValue: Number(project.contract_value), actualCosts: Number(project.actual_costs), percentage: sum('percentage'), reportedPercentage: sum('reportedPercentage'), revenue: sum('revenue'), costs: sum('costs'), grossProfit: sum('grossProfit'), forecastGrossProfit: sum('forecastGrossProfit'), forecastBasis: rows[0].forecastBasis, margin: rows[0].margin, forecastMissing: rows.some(row => row.forecastMissing), months: rows };
 }

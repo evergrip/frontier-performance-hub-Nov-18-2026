@@ -1,12 +1,13 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import ProjectProfitActions from '@/components/projects/ProjectProfitActions';
 
 const money = value => new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(value);
 export default function QuarterProfitContribution({ row, onEdit }) {
   return <div className="space-y-3 rounded-md border border-border bg-card p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="font-semibold text-foreground">{row.title}</h3><p className="text-xs text-muted-foreground">{row.status.replaceAll('_', ' ')} · {row.reportedPercentage.toFixed(2)}% reported / {row.percentage.toFixed(2)}% scheduled this quarter</p></div>
-      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => onEdit(row.id, 'financials')}>Edit financials</Button><Button size="sm" variant="outline" onClick={() => onEdit(row.id, 'allocations')}>Edit allocations</Button></div>
+      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => onEdit(row.id, 'financials')}>Edit financials</Button>{row.recognitionMode === 'monthly_actual' ? <ProjectProfitActions project={row.project} /> : <Button size="sm" variant="outline" onClick={() => onEdit(row.id, 'gp')}>Edit GP allocations</Button>}</div>
     </div>
     <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
       <div><p className="text-xs text-muted-foreground">Allocated revenue</p><p>{money(row.revenue)}</p></div>

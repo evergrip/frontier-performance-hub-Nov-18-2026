@@ -17,7 +17,7 @@ export default function PeriodMetricConfig({ metricKey, projects, sales, dateRan
     total: metricKey === 'margins' ? null : metricKey === 'grossProfit' ? profit : items.reduce((s, p) => s + p._period.revenue, 0),
     renderRow: p => <TableRow key={p.id}>
       <TableCell className="font-medium">{p.title}</TableCell><TableCell>{getClientName(p.client_id)}</TableCell>
-      <TableCell>{(p.status || '').replace(/_/g, ' ')}</TableCell>
+      <TableCell>{p.inventory_status === 'held' ? 'FBG inventory · unsold' : p.inventory_status === 'sold' ? 'FBG inventory · sold' : (p.status || '').replace(/_/g, ' ')}</TableCell>
       <TableCell>${Math.round(p._period.revenue).toLocaleString()}</TableCell>
       <TableCell>${Math.round(p._period.costs).toLocaleString()}</TableCell>
       <TableCell>{p.sale_type ? '—' : `$${Math.round(p._period.grossProfit).toLocaleString()}`}</TableCell>
