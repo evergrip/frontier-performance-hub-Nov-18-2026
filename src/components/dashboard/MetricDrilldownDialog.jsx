@@ -99,7 +99,7 @@ export default function MetricDrilldownDialog({
       }
 
       case 'activeProjects': {
-        const active = projects.filter(p => !['closed'].includes(p.status));
+        const active = projects.filter(p => !['closed'].includes(p.status) && !['held', 'sold'].includes(p.inventory_status));
         return {
           title: 'Active Projects',
           formula: 'Count of all projects where status is NOT "closed". Not date-range filtered — shows current active state.',

@@ -25,6 +25,8 @@ import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
 import GpAllocationLauncher from '@/components/projects/GpAllocationLauncher';
 import ProjectCloseoutSummary from '@/components/projects/ProjectCloseoutSummary';
+import ProjectProfitActions from '@/components/projects/ProjectProfitActions';
+import FbgInventorySection from '@/components/projects/FbgInventorySection';
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import { allocationDate } from '@/components/utils/projectPeriod';
@@ -75,8 +77,8 @@ export default function Projects() {
   const [gmHistoryProject, setGmHistoryProject] = useState(null);
 
   const { data: projects = [] } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => base44.entities.Project.list('-created_date'),
+    queryKey: ['projects', 'constructionBoard'],
+    queryFn: () => base44.entities.Project.filter({ inventory_status: { $nin: ['held', 'sold'] } }, '-created_date'),
     initialData: [],
   });
 
@@ -795,6 +797,8 @@ export default function Projects() {
         </TabsContent>
       </Tabs>
 
+      <FbgInventorySection user={currentUser} />
+
       {/* Construction Forecast */}
       <ConstructionForecast
         assignedUserId={isAdmin && filterSalesperson !== 'all' ? filterSalesperson : undefined}
@@ -946,7 +950,7 @@ export default function Projects() {
               </div>
             )}
 
-            {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} />}
+            {selectedProject && <ProjectProfitActions project={selectedProject} />}
 
                          <div className="flex gap-2 justify-end pt-4">
                         <Button type="button" variant="outline" onClick={() => setAdvanceDialogOpen(false)}>
@@ -1071,7 +1075,7 @@ export default function Projects() {
               </div>
             )}
 
-            {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} />}
+            {selectedProject && <ProjectProfitActions project={selectedProject} />}
 
             <div className="flex gap-2 justify-end pt-4">
               <Button type="button" variant="outline" onClick={() => { setEditDialogOpen(false); setAllocationDialogOpen(false); }}>

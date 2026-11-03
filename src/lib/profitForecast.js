@@ -5,6 +5,7 @@ import { buildPipelineForecast } from '@/lib/pipelineForecast';
 const number = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
 export function getProjectGrossProfit(project, sale) {
+  if (project.recognition_mode === 'monthly_actual') return projectPeriodFinancials(project, null, true);
   const revenue = number(project.contract_value);
   const recordedMargin = project.actual_margin;
   const hasRecordedMargin = recordedMargin !== null && recordedMargin !== undefined && recordedMargin !== '';
@@ -29,13 +30,13 @@ export function calculateAnnualProfitForecast({ projects, sales, allSales = sale
   const realizedGP = construction.reduce((sum, p) => {
     const period = projectPeriodFinancials(p, dateRange);
     if (!period.percentage) return sum;
-    if (p.status === 'closed') return sum + period.grossProfit;
+    if (p.recognition_mode === 'monthly_actual' || p.status === 'closed') return sum + period.grossProfit;
     const { grossMargin } = getProjectGrossProfit(p, salesById[p.sale_id]);
     return sum + number(p.contract_value) * period.percentage / 100 * grossMargin / 100;
   }, 0);
   const closedCount = construction.filter((p) => p.status === 'closed' && projectPeriodFinancials(p, dateRange).percentage > 0).length;
   const f = buildPipelineForecast({ projects, sales, allSales, range: dateRange, settings, now });
-  const inProgressGP = f.totals.activeFYGP;
+  const inProgressGP = f.totals.activeFYGP + construction.filter(p => p.recognition_mode === 'monthly_actual').reduce((sum, p) => sum + projectPeriodFinancials(p, dateRange, true).grossProfit - projectPeriodFinancials(p, dateRange).grossProfit, 0);
   const signedGP = f.totals.signedFYGP;
   const pipelineGP = f.totals.preconFYGP;
   return {

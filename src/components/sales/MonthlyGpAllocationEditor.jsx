@@ -14,7 +14,7 @@ export default function MonthlyGpAllocationEditor({ data, identifiers, onClose, 
     const response = await base44.functions.invoke('jobGpForecast', { ...identifiers, forecastScope: data.forecastScope || identifiers.forecastScope, action: 'save', allocationMode: 'monthly', totalGP: Number(gp), totalRevenue: Number(revenue), monthlyAllocations: rows, revision: data.forecast?.revision || 0 });
     if (response.data.error) throw new Error(response.data.error);
     return response.data;
-  }, onSuccess: () => { ['weeklyGpForecast', 'monthlyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'sales', 'projects', 'gpForecastTable'].forEach(key => client.invalidateQueries({ queryKey: [key] })); onSaved?.(); onClose(); } });
+  }, onSuccess: () => { ['weeklyGpForecast', 'monthlyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'sales', 'projects', 'gpForecastTable', 'dashboardMonthlyAllocations'].forEach(key => client.invalidateQueries({ queryKey: [key] })); onSaved?.(); onClose(); } });
   return <form className="space-y-4" onSubmit={e => { e.preventDefault(); e.stopPropagation(); save.mutate(); }}>
     <p className="text-sm text-muted-foreground">{data.phase}. Set GP and revenue dollars independently for each month. These are planning estimates, not accounting approvals.</p>
     <GpAllocationBudgetInputs gp={gp} revenue={revenue} onGpChange={setGp} onRevenueChange={setRevenue} disabled={save.isPending} />

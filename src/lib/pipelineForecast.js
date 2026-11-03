@@ -100,7 +100,7 @@ export function buildPipelineForecast({ projects = [], sales = [], allSales = sa
 
   // Active construction projects: remaining work (future months, incl. current) in this FY vs beyond.
   const activeProjects = projects
-    .filter((p) => p.project_type === 'construction' && p.status !== 'closed' && p.include_in_forecast !== false)
+    .filter((p) => p.project_type === 'construction' && p.status !== 'closed' && p.include_in_forecast !== false && p.recognition_mode !== 'monthly_actual')
     .map((project) => {
       const value = num(project.contract_value);
       const sale = salesById[project.sale_id];

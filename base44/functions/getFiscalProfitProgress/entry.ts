@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { allocationIssues, periodOf } from '../../shared/verificationMath.ts';
 import { projectProfitMonths, contributionForQuarter } from '../../shared/quarterProfitMath.ts';
 import { fiscalWeeklyForecasts } from '../../shared/fiscalWeeklyForecasts.ts';
+import { monthlyProjectForecasts, forecastProfitMonths } from '../../shared/monthlyProjectForecasts.ts';
 
 export default async function(req) {
   try {
@@ -55,10 +56,11 @@ export default async function(req) {
     };
     const weeklyForecast = await fiscalWeeklyForecasts(base44, scopeUser, start, end);
     do {
-      const page = await base44.entities.Project.filter(query, { limit: 100, cursor, fields: ['title', 'sale_id', 'contract_value', 'actual_costs', 'actual_margin', 'include_in_forecast', 'monthly_revenue_allocations', 'status', 'status_history', 'start_date', 'actual_completion_date', 'created_date'] });
+      const page = await base44.entities.Project.filter(query, { limit: 100, cursor, fields: ['title', 'sale_id', 'contract_value', 'actual_costs', 'actual_margin', 'include_in_forecast', 'monthly_revenue_allocations', 'status', 'status_history', 'start_date', 'actual_completion_date', 'created_date', 'recognition_mode', 'inventory_status', 'monthly_actual_allocations'] });
       const linkedIds = [...new Set(page.items.filter(project => project.status !== 'closed' && project.include_in_forecast !== false && (project.actual_margin == null || project.actual_margin === '')).map(project => project.sale_id).filter(Boolean))];
       const linkedSales = linkedIds.length ? await base44.entities.Sale.filter({ id: { $in: linkedIds } }, { limit: 100, fields: ['estimated_margin'] }) : { items: [] };
       const salesById = Object.fromEntries(linkedSales.items.map(sale => [sale.id, sale]));
+      const savedMonthly = await monthlyProjectForecasts(base44, page.items.map(project => project.id));
       for (const project of page.items) {
         let allocations = project.monthly_revenue_allocations || [];
         if (!allocations.length && project.status === 'closed') {
@@ -69,10 +71,13 @@ export default async function(req) {
           const fy = value => Number(value.slice(0, 4)) - (Number(value.slice(5, 7)) < 10 ? 1 : 0);
           if (began && close && fy(began) === fy(close)) allocations = [{ period: close.slice(0, 7), percentage: 100 }];
         }
+        const independent = project.recognition_mode === 'monthly_actual';
+        if (independent) allocations = (project.monthly_actual_allocations || []).map(row => ({ period: row.period, percentage: 0 }));
+        else if (savedMonthly[project.id]) allocations = savedMonthly[project.id].monthly_allocations.map(row => ({ period: row.period, percentage: 0 }));
         if (!allocations.length || allocationIssues(allocations).length) { excludedProjects++; continue; }
         const relevant = allocations.some(item => { const period = periodOf(item); return period >= start && period <= end; });
         if (!relevant) continue;
-        const forecastEligible = project.status !== 'closed' && project.include_in_forecast !== false && allocations.some(item => periodOf(item) >= start && periodOf(item) <= end && Number(item.percentage) > 0);
+        const forecastEligible = !independent && project.status !== 'closed' && project.include_in_forecast !== false && allocations.some(item => periodOf(item) >= start && periodOf(item) <= end);
         if (forecastEligible) {
           const rawMargin = project.actual_margin != null && project.actual_margin !== '' ? project.actual_margin : salesById[project.sale_id]?.estimated_margin;
           const margin = rawMargin == null || rawMargin === '' ? NaN : Number(rawMargin);
@@ -91,19 +96,19 @@ export default async function(req) {
             forecastSkippedCount++;
           }
         }
-        if (allocations.reduce((sum, item) => sum + Number(item.percentage), 0) < 99.9) incompleteProjects++;
+        if (!independent && !savedMonthly[project.id] && allocations.reduce((sum, item) => sum + Number(item.percentage), 0) < 99.9) incompleteProjects++;
         const revenue = Number(project.contract_value), costs = Number(project.actual_costs);
         if (!Number.isFinite(revenue) || !Number.isFinite(costs)) { excludedProjects++; continue; }
-        const profitMonths = projectProfitMonths(project, salesById[project.sale_id], allocations, currentPeriod).filter(row => byPeriod[row.period]);
+        const profitMonths = (!independent && savedMonthly[project.id] ? forecastProfitMonths(savedMonthly[project.id], project, currentPeriod) : projectProfitMonths(project, salesById[project.sale_id], allocations, currentPeriod)).filter(row => byPeriod[row.period]);
         revenueProjectIds.add(project.id);
         for (const row of profitMonths) {
-          row.allocatedRevenue = revenue * row.percentage / 100;
+          if (!independent && !savedMonthly[project.id]) row.allocatedRevenue = revenue * row.percentage / 100;
           if (!weeklyForecast.monthlyProjectIds.has(project.id)) byPeriod[row.period].allocatedRevenue += row.allocatedRevenue;
           if (weeklyForecast.overriddenProjectIds.has(project.id)) { row.forecastGrossProfit = 0; row.forecastMissing = false; row.forecastBasis = 'Saved GP dollar schedule (shown separately)'; }
           const month = byPeriod[row.period];
           month.revenue += row.revenue;
           month.costs += row.costs;
-          month.grossProfit = month.revenue - month.costs;
+          month.grossProfit += row.grossProfit;
           month.forecastGrossProfit += row.forecastGrossProfit;
           if (row.forecastMissing) missingMargins[Math.floor(months.indexOf(month) / 3)].add(project.id);
         }

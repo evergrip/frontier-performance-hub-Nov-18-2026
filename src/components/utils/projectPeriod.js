@@ -28,7 +28,19 @@ export function allocationPercentage(record, range, pastOnly = false, now = new 
   }, 0);
 }
 export function projectPeriodFinancials(project, range, scheduled = false, startMonth = 10, monthlyAllocation = null) {
-  if (!scheduled && project.status !== 'closed' && monthlyAllocation) return monthlyAllocation;
+  if (project.recognition_mode === 'monthly_actual') {
+    const now = new Date();
+    const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const rows = (project.monthly_actual_allocations || []).filter(row => {
+      const date = allocationDate(row), end = date && new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
+      return date && (!range?.start || end >= range.start) && (!range?.end || date <= range.end) && (scheduled || row.period <= currentPeriod);
+    });
+    const held = project.inventory_status === 'held';
+    const revenue = held ? 0 : rows.reduce((sum, row) => sum + Number(row.revenue || 0), 0);
+    const grossProfit = held ? 0 : rows.reduce((sum, row) => sum + Number(row.gp || 0), 0);
+    return { percentage: rows.length ? 100 : 0, revenue, grossProfit, costs: rows.reduce((sum, row) => sum + Number(row.costs || 0), 0), grossMargin: revenue ? grossProfit / revenue * 100 : 0 };
+  }
+  if (!scheduled && monthlyAllocation) return monthlyAllocation;
   const f = calculateProjectFinancials(project);
   const margin = project.actual_margin;
   const grossProfit = project.status !== 'closed' && margin !== null && margin !== undefined && margin !== '' ? f.revenue * Number(margin) / 100 : f.grossProfit;
@@ -42,7 +54,7 @@ export function projectPeriodFinancials(project, range, scheduled = false, start
   return { percentage, revenue, grossProfit: profit, costs: revenue - profit, grossMargin: f.revenue ? grossProfit / f.revenue * 100 : 0 };
 }
 export function carryoverIssue(project, range) {
-  if (!range?.start || !range?.end || project.project_type !== 'construction') return null;
+  if (!range?.start || !range?.end || project.project_type !== 'construction' || project.recognition_mode === 'monthly_actual') return null;
   if (projectStartDate(project) >= range.start || project.status === 'closed' && projectClosedDate(project) < range.start) return null;
   const allocations = project.monthly_revenue_allocations || [], periods = allocations.map(a => allocationDate(a)?.getTime());
   const total = allocations.reduce((s, a) => s + (Number(a.percentage) || 0), 0);

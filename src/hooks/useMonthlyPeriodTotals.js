@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 export default function useMonthlyPeriodTotals(projects, dateRange, userId) {
   const client = useQueryClient();
-  const projectIds = projects.filter(project => project.project_type === 'construction' && project.status !== 'closed').map(project => project.id).sort();
+  const projectIds = projects.filter(project => project.project_type === 'construction').map(project => project.id).sort();
   const start = dateRange.start ? format(dateRange.start, 'yyyy-MM-dd') : null;
   const end = dateRange.end ? format(dateRange.end, 'yyyy-MM-dd') : null;
   const query = useQuery({ queryKey: ['dashboardMonthlyAllocations', userId, projectIds, start, end], enabled: !!userId, queryFn: async () => {

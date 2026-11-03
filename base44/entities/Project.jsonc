@@ -65,26 +65,21 @@
     },
     "start_date": {
       "type": "string",
-      "format": "date",
-      "description": "Project start date"
+      "format": "date"
     },
     "target_completion_date": {
       "type": "string",
-      "format": "date",
-      "description": "Expected completion"
+      "format": "date"
     },
     "actual_completion_date": {
       "type": "string",
-      "format": "date",
-      "description": "Actual completion date"
+      "format": "date"
     },
     "project_manager_id": {
-      "type": "string",
-      "description": "User ID of project manager"
+      "type": "string"
     },
     "gm_report_assignee_id": {
-      "type": "string",
-      "description": "User ID responsible for submitting weekly gross margin reports"
+      "type": "string"
     },
     "crew_assignment": {
       "type": "string",
@@ -95,17 +90,14 @@
         "crew_d",
         "unassigned"
       ],
-      "default": "unassigned",
-      "description": "Assigned construction crew"
+      "default": "unassigned"
     },
     "color": {
-      "type": "string",
-      "description": "Hex color code for visual identification"
+      "type": "string"
     },
     "include_in_forecast": {
       "type": "boolean",
-      "default": true,
-      "description": "Whether this project is included in the build capacity forecast"
+      "default": true
     },
     "forecast_build_type": {
       "type": "string",
@@ -114,8 +106,7 @@
         "subcontractor",
         "mixed"
       ],
-      "default": "in_house",
-      "description": "How this project is built \u2014 in-house crew, subcontractor, or mixed"
+      "default": "in_house"
     },
     "monthly_revenue_allocations": {
       "type": "array",
@@ -123,24 +114,19 @@
         "type": "object",
         "properties": {
           "period": {
-            "type": "string",
-            "description": "Period in YYYY-MM format"
+            "type": "string"
           },
           "year": {
-            "type": "number",
-            "description": "Year of allocation"
+            "type": "number"
           },
           "month": {
-            "type": "number",
-            "description": "Month of allocation (1-12)"
+            "type": "number"
           },
           "percentage": {
-            "type": "number",
-            "description": "Percentage of contract value allocated to this period"
+            "type": "number"
           }
         }
-      },
-      "description": "Monthly revenue recognition allocations"
+      }
     },
     "monthly_sub_allocations": {
       "type": "array",
@@ -148,24 +134,19 @@
         "type": "object",
         "properties": {
           "period": {
-            "type": "string",
-            "description": "Period in YYYY-MM format"
+            "type": "string"
           },
           "year": {
-            "type": "number",
-            "description": "Year"
+            "type": "number"
           },
           "month": {
-            "type": "number",
-            "description": "Month (1-12)"
+            "type": "number"
           },
           "sub_percentage": {
-            "type": "number",
-            "description": "Percentage of that month's revenue allocated to subs (0-100). Remainder is in-house."
+            "type": "number"
           }
         }
-      },
-      "description": "Monthly sub vs in-house split. sub_percentage is % to subs, remainder is in-house."
+      }
     },
     "monthly_work_allocations": {
       "type": "array",
@@ -173,24 +154,19 @@
         "type": "object",
         "properties": {
           "period": {
-            "type": "string",
-            "description": "Period in YYYY-MM format"
+            "type": "string"
           },
           "year": {
-            "type": "number",
-            "description": "Year of allocation"
+            "type": "number"
           },
           "month": {
-            "type": "number",
-            "description": "Month of allocation (1-12)"
+            "type": "number"
           },
           "percentage": {
-            "type": "number",
-            "description": "Percentage of work allocated to this period"
+            "type": "number"
           }
         }
-      },
-      "description": "Monthly work allocation percentages for staff scheduling"
+      }
     },
     "phases": {
       "type": "array",
@@ -234,12 +210,76 @@
             "type": "boolean"
           }
         }
-      },
-      "description": "Project phases with tracking"
+      }
     },
     "notes": {
+      "type": "string"
+    },
+    "recognition_mode": {
       "type": "string",
-      "description": "Project notes"
+      "enum": [
+        "standard",
+        "monthly_actual"
+      ],
+      "enumColors": [
+        "gray",
+        "blue"
+      ]
+    },
+    "inventory_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "held",
+        "sold"
+      ],
+      "enumColors": [
+        "gray",
+        "yellow",
+        "green"
+      ],
+      "default": "none"
+    },
+    "inventory_sale_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "inventory_sale_price": {
+      "type": "number",
+      "minimum": 0
+    },
+    "recognition_revision": {
+      "type": "number",
+      "default": 0
+    },
+    "monthly_actual_allocations": {
+      "type": "array",
+      "description": "Independent incurred costs, revenue and realized GP; costs are not deducted again from entered GP.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "costs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "revenue": {
+            "type": "number",
+            "minimum": 0
+          },
+          "gp": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "period",
+          "costs",
+          "revenue",
+          "gp"
+        ]
+      }
     }
   },
   "required": [

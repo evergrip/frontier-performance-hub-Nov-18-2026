@@ -29,6 +29,7 @@ function initialRows(job, totalGP, totalRevenue, start) {
 }
 export async function monthlyGpAllocations(base44, job, input, action) {
   const existing = job.existing;
+  if (action === 'save' && job.project?.recognition_mode === 'monthly_actual') return Response.json({ error: 'Use the costs & realized GP timing editor for this project.' }, { status: 400 });
   const sourceRevenue = job.forecastScope === 'precon' ? job.precon.contract_value : [job.project?.contract_value, job.sale?.sale_type === 'construction' ? job.sale.contract_value : null, job.precon?.estimated_construction_budget].find(value => valid(value) && Number(value) > 0);
   const totalRevenue = cents(input.totalRevenue ?? existing?.total_revenue ?? sourceRevenue ?? 0);
   const totalGP = cents(input.totalGP ?? existing?.total_gp ?? Math.max(0, job.estimatedGP));

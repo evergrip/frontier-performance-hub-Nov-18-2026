@@ -14,7 +14,7 @@ export async function resolveGpJob(base44, input) {
     if (children.items.length) project = (await base44.entities.Project.filter({ sale_id: { $in: children.items.map(row => row.id) } }, { sort: '-created_date', limit: 1 })).items[0];
   }
   if (!project && !precon && !pointed) throw new Error('Job not found.');
-  if (project && !sale) sale = await base44.entities.Sale.get(project.sale_id);
+  if (project && !sale && project.sale_id) sale = await base44.entities.Sale.get(project.sale_id);
   if (!precon && sale?.linked_precon_sale_id) precon = await base44.entities.Sale.get(sale.linked_precon_sale_id);
   if (precon && precon.sale_type !== 'preconstruction') throw new Error('Invalid pre-construction job.');
   if (input.saleId && project && sale?.linked_precon_sale_id !== input.saleId) throw new Error('Construction project does not belong to this pre-con job.');

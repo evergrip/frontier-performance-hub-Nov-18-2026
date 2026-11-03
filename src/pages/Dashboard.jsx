@@ -245,7 +245,7 @@ export default function Dashboard() {
     const constructionRevenue = constructionFinancials.reduce((sum, f) => sum + f.revenue, 0);
     const totalRevenue = preconRevenue + constructionRevenue;
     
-    const activeProjectsCount = scopedProjects.filter(p => !['closed', 'completion'].includes(p.status)).length;
+    const activeProjectsCount = scopedProjects.filter(p => !['closed', 'completion'].includes(p.status) && !['held', 'sold'].includes(p.inventory_status)).length;
     const activeSalesCount = scopedSales.filter(s => ['feasibility', 'design_material_selections', 'engineering_permits', 'pending_construction_sale'].includes(s.status)).length;
     const activeLeadsCount = scopedLeads.filter(l => !['converted', 'disqualified'].includes(l.status)).length;
     

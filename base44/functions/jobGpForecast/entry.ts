@@ -4,12 +4,14 @@ import { resolveGpJob, legacyOverrides, syncGpTiming, OPEN_PRECON } from '../../
 import { allocationIssues } from '../../shared/verificationMath.ts';
 import { monthlyGpAllocations } from '../../shared/monthlyGpAllocations.ts';
 import { monthlyPeriodTotals } from '../../shared/monthlyPeriodTotals.ts';
+import { saveProjectRecognition } from '../../shared/saveProjectRecognition.ts';
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req), user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     const input = await req.json(), action = input.action || 'load', offset = input.offset || 0;
     if (action === 'periodTotals') return await monthlyPeriodTotals(base44, input);
+    if (action === 'saveRecognition') return await saveProjectRecognition(base44, user, input);
     if (!['load', 'save', 'handoff', 'validateCloseout', 'preview'].includes(action) || !Number.isInteger(offset) || offset < 0) throw new Error('Invalid request.');
     if (action === 'preview') return Response.json(effectiveSchedule(input.forecast));
     if (!input.saleId && !input.projectId && !input.forecastId) throw new Error('Select a job.');

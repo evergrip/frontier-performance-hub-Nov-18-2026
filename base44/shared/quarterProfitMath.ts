@@ -1,8 +1,10 @@
 import { periodOf } from './verificationMath.ts';
+import { recognitionMonths } from './projectRecognition.ts';
 
 const hasNumber = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
 
 export function projectProfitMonths(project, sale, allocations, currentPeriod) {
+  if (project.recognition_mode === 'monthly_actual') return recognitionMonths(project, currentPeriod);
   const revenue = Number(project.contract_value), costs = Number(project.actual_costs);
   const closed = project.status === 'closed';
   const margin = hasNumber(project.actual_margin) ? Number(project.actual_margin) : hasNumber(sale?.estimated_margin) ? Number(sale.estimated_margin) : null;

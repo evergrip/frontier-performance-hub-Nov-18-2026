@@ -17,7 +17,7 @@ export async function fiscalWeeklyForecasts(base44, user, start, end) {
     const projectConditions = [];
     if (projectIds.length) projectConditions.push({ id: { $in: projectIds } });
     if (children.length) projectConditions.push({ sale_id: { $in: children.map(row => row.id) } });
-    const projects = projectConditions.length ? await matching(base44.entities.Project, { $or: projectConditions }, ['title', 'status', 'include_in_forecast', 'project_manager_id', 'sale_id', 'contract_value', 'monthly_revenue_allocations']) : [];
+    const projects = projectConditions.length ? await matching(base44.entities.Project, { $or: projectConditions }, ['title', 'status', 'include_in_forecast', 'project_manager_id', 'sale_id', 'contract_value', 'monthly_revenue_allocations', 'recognition_mode']) : [];
     const childrenById = Object.fromEntries(children.map(row => [row.id, row]));
     const otherIds = [...new Set(projects.map(project => project.sale_id).filter(id => id && !childrenById[id]))];
     const otherSales = otherIds.length ? await matching(base44.entities.Sale, { id: { $in: otherIds } }, ['assigned_to', 'sale_contributors']) : [];
@@ -37,7 +37,7 @@ export async function fiscalWeeklyForecasts(base44, user, start, end) {
       if (project) seenProjects.add(project.id);
       if (forecast.precon_sale_id) seenPrecons.add(forecast.precon_sale_id);
       if (project) {
-        if (project.status === 'closed' || project.include_in_forecast === false || user.role !== 'admin' && project.project_manager_id !== user.id && !owns(saleMap[project.sale_id])) continue;
+        if (project.recognition_mode === 'monthly_actual' || project.status === 'closed' || project.include_in_forecast === false || user.role !== 'admin' && project.project_manager_id !== user.id && !owns(saleMap[project.sale_id])) continue;
         overriddenProjectIds.add(project.id);
       } else if (!precon || !OPEN_PRECON.includes(precon.status) || precon.include_in_forecast === false || user.role !== 'admin' && !owns(precon)) continue;
       const lastDay = new Date(Date.UTC(Number(end.slice(0, 4)), Number(end.slice(5, 7)), 0)).getUTCDate();
