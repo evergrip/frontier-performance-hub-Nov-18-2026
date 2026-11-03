@@ -28,6 +28,7 @@ import ProjectCloseoutSummary from '@/components/projects/ProjectCloseoutSummary
 import ProjectProfitActions from '@/components/projects/ProjectProfitActions';
 import FbgInventorySection from '@/components/projects/FbgInventorySection';
 import MoveProjectToInventoryDialog from '@/components/projects/MoveProjectToInventoryDialog';
+import ProjectPipelineSummary from '@/components/projects/ProjectPipelineSummary';
 import SubAllocationDialog from '../components/projects/SubAllocationDialog';
 import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fiscalYear';
 import { allocationDate } from '@/components/utils/projectPeriod';
@@ -546,8 +547,7 @@ export default function Projects() {
     }
   });
 
-  const totalValue = activeProjects.reduce((sum, p) => sum + (p.contract_value || 0), 0);
-  const totalProjectedGP = activeProjects.reduce((sum, project) => sum + getProjectGrossProfit(project, sales.find(sale => sale.id === project.sale_id)).grossProfit, 0);
+
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -579,33 +579,7 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-slate-900">{activeProjects.length}</div>
-            <div className="text-sm text-slate-500">Active Projects</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-emerald-600">${totalValue.toLocaleString()}</div>
-            <div className="text-sm text-slate-500">Pipeline Value</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-emerald-600">${totalProjectedGP.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-            <div className="text-sm text-slate-500">Projected Gross Profit</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-slate-600">{closedProjects.length}</div>
-            <div className="text-sm text-slate-500">Closed Projects</div>
-          </CardContent>
-        </Card>
-      </div>
+      <ProjectPipelineSummary user={currentUser} assignedUserId={isAdmin && filterSalesperson !== 'all' ? filterSalesperson : undefined} />
 
       <Tabs defaultValue="active" className="w-full">
         <TabsList>

@@ -6,12 +6,14 @@ import { monthlyGpAllocations } from '../../shared/monthlyGpAllocations.ts';
 import { monthlyPeriodTotals } from '../../shared/monthlyPeriodTotals.ts';
 import { saveProjectRecognition } from '../../shared/saveProjectRecognition.ts';
 import { moveProjectToInventory } from '../../shared/moveProjectToInventory.ts';
+import { projectPipelineSummary } from '../../shared/projectPipelineSummary.ts';
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req), user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     const input = await req.json(), action = input.action || 'load', offset = input.offset || 0;
     if (action === 'periodTotals') return await monthlyPeriodTotals(base44, input);
+    if (action === 'pipelineSummary') return await projectPipelineSummary(base44, user, input);
     if (action === 'saveRecognition') return await saveProjectRecognition(base44, user, input);
     if (action === 'moveToInventory') return await moveProjectToInventory(base44, user, input);
     if (!['load', 'save', 'handoff', 'validateCloseout', 'preview'].includes(action) || !Number.isInteger(offset) || offset < 0) throw new Error('Invalid request.');
