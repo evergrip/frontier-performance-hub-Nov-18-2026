@@ -15,9 +15,14 @@ test('changing final GP updates costs and margin consistently', () => {
 test('partial allocations cannot be finalized', () => {
   const state = standard(); state.rows.pop(); assert.equal(closeoutTotals(state).ready, false);
 });
-test('approval cannot silently alter the project contract', () => {
+test('balanced final results override the expected contract revenue', () => {
   const state = standard(); state.totalRevenue = 90000; state.rows[1].revenue = 50000;
-  assert.match(closeoutTotals(state).error, /contract value/);
+  const totals = closeoutTotals(state);
+  assert.equal(totals.ready, true); assert.equal(totals.revenue, 90000); assert.equal(totals.costs, 65000);
+});
+test('final revenue may exceed the original contract when all dollars are allocated', () => {
+  const state = standard(); state.totalRevenue = 110000; state.rows[1].revenue = 70000;
+  assert.equal(closeoutTotals(state).ready, true);
 });
 test('independent monthly costs and realized GP are preserved without double deduction', () => {
   const state = { project: { recognition_mode: 'monthly_actual', contract_value: 100000 }, baselineCosts: 70000, rows: [{ period: '2026-10', costs: 70000, revenue: 0, gp: 0 }, { period: '2026-11', costs: 0, revenue: 100000, gp: 25000 }] };

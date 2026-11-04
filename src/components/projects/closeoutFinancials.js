@@ -10,11 +10,7 @@ export function closeoutTotals(financials) {
   if (!financials.rows.length || financials.rows.some(row => !/^\d{4}-(0[1-9]|1[0-2])$/.test(row.period) || row.period > '2200-12' || !(actual ? ['revenue', 'gp', 'costs'] : ['revenue', 'gp']).every(field => valid(row[field]) && (field === 'gp' && actual || Number(row[field]) >= 0))) || new Set(financials.rows.map(row => row.period)).size !== financials.rows.length) error = 'Enter unique valid months and complete dollar amounts.';
   else if (![revenue, gp, costs].every(Number.isFinite) || revenue < 0 || costs < 0 || !actual && (!valid(financials.totalRevenue) || !valid(financials.totalGP) || gp < 0)) error = 'Enter valid final amounts. Revenue and costs cannot be negative.';
   else if (!actual && (Math.abs(sum('gp') - gp) > 0.01 || Math.abs(sum('revenue') - revenue) > 0.01)) error = 'Allocate all final GP and revenue to months before approving closeout.';
-  else if (!actual && Math.abs(cents(revenue - Number(financials.project.contract_value || 0))) > 0.01) {
-    const money = value => Number(value).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' });
-    const contract = Number(financials.project.contract_value || 0), difference = cents(revenue - contract);
-    error = `Your monthly allocations balance, but final revenue (${money(revenue)}) is ${money(Math.abs(difference))} ${difference > 0 ? 'above' : 'below'} the saved project contract value (${money(contract)}). Correct the allocation budget, or update the project contract if this difference is an approved contract change.`;
-  }
+
   return { revenue, gp, costs, margin, ready: !error, error };
 }
 export function closeoutCostVariance(financials) {

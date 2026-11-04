@@ -11,9 +11,9 @@ export default function CloseoutFinancialTotals({ financials }) {
   const contractRevenue = Number(financials.project.contract_value || 0);
   const contractDifference = Math.round((totals.revenue - contractRevenue) * 100) / 100;
   const entries = [
-    ...(standard ? [['Project contract value', money(contractRevenue)]] : []),
+    ...(standard ? [['Expected contract revenue', money(contractRevenue)]] : []),
     ['Final revenue', money(totals.revenue)],
-    ...(standard && contractDifference !== 0 ? [[contractDifference > 0 ? 'Revenue above project contract' : 'Revenue below project contract', money(Math.abs(contractDifference)), true]] : []),
+    ...(standard && contractDifference !== 0 ? [[contractDifference > 0 ? 'Revenue above expectation' : 'Revenue below expectation', money(Math.abs(contractDifference))]] : []),
     ...(standard ? [['Allocated revenue', money(allocatedRevenue)], [missingRevenue < 0 ? 'Overallocated revenue' : 'Missing revenue', money(Math.abs(missingRevenue)), missingRevenue !== 0]] : []),
     ['Final costs', money(totals.costs)],
     ['Final gross profit', money(totals.gp)],

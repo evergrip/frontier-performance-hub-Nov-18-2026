@@ -26,9 +26,10 @@ export default function useCloseoutApproval({ onSaved, onSuccess }) {
     }
     const freshProject = await base44.entities.Project.get(project.id);
     let notes = freshProject.notes || '';
+    notes = `${notes}\n\nApproved Closeout Results: Expected project contract revenue $${Number(project.contract_value || 0).toFixed(2)}; final revenue $${totals.revenue.toFixed(2)}; final costs $${totals.costs.toFixed(2)}; final GP $${totals.gp.toFixed(2)}.`.trim();
     if (form.variance_explanation) notes = `${notes}\n\nCloseout Variance Explanation: ${form.variance_explanation}`.trim();
     if (form.margin_variance_explanation) notes = `${notes}\n\nMargin Variance Explanation: ${form.margin_variance_explanation}`.trim();
-    await base44.entities.Project.update(project.id, { status: 'closed', status_history: [...(freshProject.status_history || []), { status: 'closed', entered_date: new Date().toISOString(), source: 'project' }], actual_costs: totals.costs, actual_margin: totals.margin, notes });
+    await base44.entities.Project.update(project.id, { status: 'closed', status_history: [...(freshProject.status_history || []), { status: 'closed', entered_date: new Date().toISOString(), source: 'project' }], contract_value: totals.revenue, actual_costs: totals.costs, actual_margin: totals.margin, notes });
     return { warning, title: project.title };
   }, onSuccess: async result => {
     await Promise.all(['projects', 'sales', 'commission-transactions', 'weeklyGpForecast', 'monthlyGpForecast', 'fiscalProfitProgress', 'quarterProfitBreakdown', 'gpForecastTable', 'dashboardMonthlyAllocations'].map(key => client.invalidateQueries({ queryKey: [key] })));
