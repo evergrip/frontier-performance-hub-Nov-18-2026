@@ -8,8 +8,12 @@ export default function CloseoutFinancialTotals({ financials }) {
   const allocatedGP = allocated('gp'), allocatedRevenue = allocated('revenue');
   const missingGP = Math.round((totals.gp - allocatedGP) * 100) / 100;
   const missingRevenue = Math.round((totals.revenue - allocatedRevenue) * 100) / 100;
+  const contractRevenue = Number(financials.project.contract_value || 0);
+  const contractDifference = Math.round((totals.revenue - contractRevenue) * 100) / 100;
   const entries = [
+    ...(standard ? [['Project contract value', money(contractRevenue)]] : []),
     ['Final revenue', money(totals.revenue)],
+    ...(standard && contractDifference !== 0 ? [[contractDifference > 0 ? 'Revenue above project contract' : 'Revenue below project contract', money(Math.abs(contractDifference)), true]] : []),
     ...(standard ? [['Allocated revenue', money(allocatedRevenue)], [missingRevenue < 0 ? 'Overallocated revenue' : 'Missing revenue', money(Math.abs(missingRevenue)), missingRevenue !== 0]] : []),
     ['Final costs', money(totals.costs)],
     ['Final gross profit', money(totals.gp)],
