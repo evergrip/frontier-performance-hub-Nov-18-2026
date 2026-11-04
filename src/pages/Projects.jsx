@@ -23,8 +23,10 @@ import AuditItemFixer from '../components/common/AuditItemFixer';
 import EditProjectDetailDialog from '../components/projects/EditProjectDetailDialog';
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
-import GpAllocationLauncher from '@/components/projects/GpAllocationLauncher';
-import ProjectCloseoutSummary from '@/components/projects/ProjectCloseoutSummary';
+
+import CloseoutFinancialReview from '@/components/projects/CloseoutFinancialReview';
+import useCloseoutApproval from '@/components/projects/useCloseoutApproval';
+import { closeoutTotals, closeoutCostVariance } from '@/components/projects/closeoutFinancials';
 import ProjectProfitActions from '@/components/projects/ProjectProfitActions';
 import FbgInventorySection from '@/components/projects/FbgInventorySection';
 import MoveProjectToInventoryDialog from '@/components/projects/MoveProjectToInventoryDialog';
@@ -34,7 +36,7 @@ import { getFiscalYearLabel, getCurrentFiscalYear } from '@/components/utils/fis
 import { allocationDate } from '@/components/utils/projectPeriod';
 import allocationSlots from '@/components/utils/allocationSlots';
 import { createPageUrl } from '../utils';
-import { getCloseoutCommissionDecision } from '@/lib/projectFinancials';
+
 import { getProjectGrossProfit } from '@/lib/profitForecast';
 
 export default function Projects() {
@@ -67,6 +69,16 @@ export default function Projects() {
   const [sendBackPhase, setSendBackPhase] = useState('');
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
   const [closeoutAuditPassed, setCloseoutAuditPassed] = useState(false);
+  const [closeoutFinancials, setCloseoutFinancials] = useState(null);
+  const closeoutApproval = useCloseoutApproval({
+    onSaved: revision => setCloseoutFinancials(previous => ({ ...previous, revision })),
+    onSuccess: result => {
+      setCloseoutDialogOpen(false);
+      setSelectedProject(null);
+      if (result.warning) toast.warning(`${result.title} was closed, but commission processing requires administrative review: ${result.warning}.`);
+      else toast.success('Financials approved and project closed');
+    }
+  });
   const [editDetailDialogOpen, setEditDetailDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [preconAllocDialogOpen, setPreconAllocDialogOpen] = useState(false);
@@ -239,12 +251,10 @@ export default function Projects() {
 
   const openCloseoutDialog = (project) => {
     setSelectedProject(project);
-    setProjectForm({
-      actual_costs: project.actual_costs || project.contract_value || '',
-      actual_margin: project.actual_margin ?? sales.find(sale => sale.id === project.sale_id)?.estimated_margin ?? '',
-      variance_explanation: ''
-    });
-    
+    setCloseoutFinancials(null);
+    setCloseoutAuditPassed(false);
+    closeoutApproval.reset();
+    setProjectForm({ variance_explanation: '', margin_variance_explanation: '' });
     setCloseoutDialogOpen(true);
   };
 
@@ -322,74 +332,9 @@ export default function Projects() {
     updateProjectStatusMutation.mutate(updateData);
   };
 
-  const handleCloseoutProject = async (e) => {
+  const handleCloseoutProject = (e) => {
     e.preventDefault();
-    
-    const actualCosts = parseFloat(projectForm.actual_costs) || 0;
-    const contractValue = selectedProject.contract_value || 0;
-    const variancePercent = Math.abs(((actualCosts - contractValue) / contractValue) * 100);
-    const threshold = companySettings?.project_closeout_variance_threshold || 3;
-    
-    if (variancePercent > threshold && !projectForm.variance_explanation.trim()) {
-      toast.error(`Variance exceeds ${threshold}%. Please explain the difference.`);
-      return;
-    }
-
-    // Check margin variance vs estimated margin from linked sale
-    const linkedSale = sales.find(s => s.id === selectedProject.sale_id);
-    const estimatedMargin = linkedSale?.estimated_margin;
-    const actualMargin = parseFloat(projectForm.actual_margin) || 0;
-    if (estimatedMargin != null && Math.abs(actualMargin - estimatedMargin) > 2 && !projectForm.margin_variance_explanation?.trim()) {
-      toast.error('Actual margin differs from estimated margin by more than 2%. Please explain why.');
-      return;
-    }
-    
-    try {
-      const validation = await base44.functions.invoke('jobGpForecast', { action: 'validateCloseout', projectId: selectedProject.id, finalTotalGP: contractValue - actualCosts });
-      if (validation.data.error) throw new Error(validation.data.error);
-    } catch (error) { toast.error(error.response?.data?.error || error.message); return; }
-
-    const commissionDecision = getCloseoutCommissionDecision(selectedProject, linkedSale);
-    let commissionWarning = commissionDecision.shouldProcess ? null : commissionDecision.reason;
-
-    if (commissionDecision.shouldProcess) {
-      if (commissionDecision.hasContractMismatch) {
-        commissionWarning = `Project contract value differs from linked Sale contract value; the verified linked Sale value was used`;
-        console.warn(`Commission review required for ${selectedProject.title}: ${commissionWarning}.`);
-      }
-      try {
-        await base44.functions.invoke('processCommission', {
-          sale_id: linkedSale.id,
-          sale_type: 'construction',
-          final_amount: commissionDecision.finalAmount,
-          is_closeout: true
-        });
-      } catch (err) {
-        commissionWarning = `commission processing failed: ${err.message || err}`;
-        console.warn(`Commission review required for ${selectedProject.title}: ${commissionWarning}.`);
-      }
-    }
-    
-    // Add 'closed' to status_history
-    const closedHistory = [...(selectedProject.status_history || []), { status: 'closed', entered_date: new Date().toISOString(), source: 'project' }];
-
-    await updateProjectStatusMutation.mutateAsync({
-      projectId: selectedProject.id,
-      status: 'closed',
-      status_history: closedHistory,
-      actual_costs: parseFloat(projectForm.actual_costs) || 0,
-      actual_margin: parseFloat(projectForm.actual_margin) || 0,
-
-      notes: (() => {
-        let n = selectedProject.notes || '';
-        if (projectForm.variance_explanation) n = `${n}\n\nCloseout Variance Explanation: ${projectForm.variance_explanation}`.trim();
-        if (projectForm.margin_variance_explanation) n = `${n}\n\nMargin Variance Explanation: ${projectForm.margin_variance_explanation}`.trim();
-        return n || selectedProject.notes;
-      })()
-    });
-    if (commissionWarning) {
-      toast.warning(`${selectedProject.title} was closed, but commission processing requires administrative review: ${commissionWarning}.`);
-    }
+    closeoutApproval.mutate({ financials: closeoutFinancials, linkedSale: sales.find(sale => sale.id === selectedProject.sale_id), form: projectForm, threshold: companySettings?.project_closeout_variance_threshold || 3, auditPassed: closeoutAuditPassed });
   };
 
   const handleUpdateProject = (e) => {
@@ -1069,8 +1014,8 @@ export default function Projects() {
       </Dialog>
 
       {/* Closeout Dialog */}
-      <Dialog open={closeoutDialogOpen} onOpenChange={setCloseoutDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <Dialog open={closeoutDialogOpen} onOpenChange={open => { if (!closeoutApproval.isPending) setCloseoutDialogOpen(open); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" onInteractOutside={e => { if (closeoutApproval.isPending) e.preventDefault(); }}>
           {(() => {
             const linkedSale = selectedProject ? sales.find(s => s.id === selectedProject.sale_id) : null;
             const linkedLead = linkedSale ? leads.find(l => l.id === linkedSale.lead_id) : null;
@@ -1105,50 +1050,22 @@ export default function Projects() {
               }}
             />
 
-            <div>
-              <Label>Final Project Costs *</Label>
-              <p className="text-xs text-slate-500 mb-2">
-                Total actual costs incurred for this project
-              </p>
-              <Input
-                type="number"
-                value={projectForm.actual_costs}
-                onChange={(e) => setProjectForm({...projectForm, actual_costs: e.target.value})}
-                placeholder="720000"
-                required
-              />
-            </div>
+            {closeoutDialogOpen && selectedProject && <CloseoutFinancialReview key={selectedProject.id} projectId={selectedProject.id} financials={closeoutFinancials} onChange={setCloseoutFinancials} disabled={closeoutApproval.isPending} />}
 
-            <div>
-              <Label>Final Gross Margin (%) *</Label>
-              <p className="text-xs text-slate-500 mb-2">
-                Final margin percentage based on actual costs
-              </p>
-              <Input
-                type="number"
-                step="0.01"
-                value={projectForm.actual_margin}
-                onChange={(e) => setProjectForm({...projectForm, actual_margin: e.target.value})}
-                placeholder="13.2"
-                required
-              />
-            </div>
-
-            {selectedProject && projectForm.actual_costs && projectForm.actual_margin && (() => {
-              const actualCosts = parseFloat(projectForm.actual_costs) || 0;
-              const variance = Math.abs(((actualCosts - selectedProject.contract_value) / selectedProject.contract_value) * 100);
+            {closeoutFinancials && (() => {
+              const variance = closeoutCostVariance(closeoutFinancials);
               const threshold = companySettings?.project_closeout_variance_threshold || 3;
               return variance > threshold ? (
                 <div>
                   <Label className="text-amber-700">Variance Explanation *</Label>
                   <p className="text-xs text-amber-600 mb-2">
-                    Cost variance of {variance.toFixed(2)}% exceeds the {threshold}% threshold. Please explain.
+                    Final costs differ from the previously entered allocation costs by {variance.toFixed(2)}%, exceeding the {threshold}% threshold. Please explain.
                   </p>
                   <Input
                     type="text"
                     value={projectForm.variance_explanation}
                     onChange={(e) => setProjectForm({...projectForm, variance_explanation: e.target.value})}
-                    placeholder="Explain the difference between contract value and final project costs"
+                    placeholder="Explain the change from the previously entered costs"
                     required
                   />
                 </div>
@@ -1156,11 +1073,11 @@ export default function Projects() {
             })()}
 
             {/* Margin variance vs estimated margin from linked Sale */}
-            {selectedProject && projectForm.actual_margin && (() => {
+            {closeoutFinancials && (() => {
               const linkedSale = sales.find(s => s.id === selectedProject.sale_id);
               const estimatedMargin = linkedSale?.estimated_margin;
               if (estimatedMargin == null) return null;
-              const actualMargin = parseFloat(projectForm.actual_margin) || 0;
+              const actualMargin = closeoutTotals(closeoutFinancials).margin;
               const marginDiff = Math.abs(actualMargin - estimatedMargin);
               if (marginDiff <= 2) return null;
               return (
@@ -1180,17 +1097,15 @@ export default function Projects() {
               );
             })()}
 
-            {selectedProject && <GpAllocationLauncher projectId={selectedProject.id} label="Reconcile final GP dollar allocations" />}
-
-            {selectedProject && projectForm.actual_costs && projectForm.actual_margin && <ProjectCloseoutSummary project={selectedProject} form={projectForm} threshold={companySettings?.project_closeout_variance_threshold || 3} />}
+            {closeoutApproval.error && <p role="alert" className="text-sm text-destructive">{closeoutApproval.error.response?.data?.error || closeoutApproval.error.message}</p>}
 
             <div className="flex gap-2 justify-end pt-4">
-              <Button type="button" variant="outline" onClick={() => setCloseoutDialogOpen(false)}>
+              <Button type="button" variant="outline" disabled={closeoutApproval.isPending} onClick={() => setCloseoutDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateProjectStatusMutation.isPending || !closeoutAuditPassed} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button type="submit" disabled={closeoutApproval.isPending || !closeoutAuditPassed || !closeoutTotals(closeoutFinancials).ready} className="bg-emerald-600 hover:bg-emerald-700">
                 <CheckCircle className="w-4 h-4 mr-2" />
-                Close Out Project
+                {closeoutApproval.isPending ? 'Finalizing…' : 'Approve Numbers & Close Out Project'}
               </Button>
               {!closeoutAuditPassed && (
                 <p className="text-xs text-red-600 mt-1">Resolve or skip all audit items before closing</p>
