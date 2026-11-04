@@ -74,6 +74,7 @@ export default function Projects() {
     onSaved: revision => setCloseoutFinancials(previous => ({ ...previous, revision })),
     onSuccess: result => {
       setCloseoutDialogOpen(false);
+      setCloseoutFinancials(null);
       setSelectedProject(null);
       if (result.warning) toast.warning(`${result.title} was closed, but commission processing requires administrative review: ${result.warning}.`);
       else toast.success('Financials approved and project closed');
@@ -334,6 +335,7 @@ export default function Projects() {
 
   const handleCloseoutProject = (e) => {
     e.preventDefault();
+    if (!closeoutDialogOpen || !selectedProject || !closeoutFinancials || closeoutApproval.isPending) return;
     closeoutApproval.mutate({ financials: closeoutFinancials, linkedSale: sales.find(sale => sale.id === selectedProject.sale_id), form: projectForm, threshold: companySettings?.project_closeout_variance_threshold || 3, auditPassed: closeoutAuditPassed });
   };
 
@@ -1017,7 +1019,8 @@ export default function Projects() {
       <Dialog open={closeoutDialogOpen} onOpenChange={open => { if (!closeoutApproval.isPending) setCloseoutDialogOpen(open); }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" onInteractOutside={e => { if (closeoutApproval.isPending) e.preventDefault(); }}>
           {(() => {
-            const linkedSale = selectedProject ? sales.find(s => s.id === selectedProject.sale_id) : null;
+            if (!closeoutDialogOpen || !selectedProject) return null;
+            const linkedSale = sales.find(s => s.id === selectedProject.sale_id);
             const linkedLead = linkedSale ? leads.find(l => l.id === linkedSale.lead_id) : null;
             const linkedClient = selectedProject ? clients.find(c => c.id === selectedProject.client_id) : null;
             const saleTxns = linkedSale ? commissionTransactions.filter(t => t.sale_id === linkedSale.id) : [];
@@ -1074,7 +1077,6 @@ export default function Projects() {
 
             {/* Margin variance vs estimated margin from linked Sale */}
             {closeoutFinancials && (() => {
-              const linkedSale = sales.find(s => s.id === selectedProject.sale_id);
               const estimatedMargin = linkedSale?.estimated_margin;
               if (estimatedMargin == null) return null;
               const actualMargin = closeoutTotals(closeoutFinancials).margin;
