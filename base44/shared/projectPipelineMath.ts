@@ -21,7 +21,8 @@ export function remainingProjectPipeline(project, sale, forecast, currentPeriod)
     }
   }
   const future = rows.filter(row => row.period > currentPeriod);
-  return { revenue: Math.max(0, revenueBudget - sum(rows, 'revenue')) + sum(future, 'revenue'), grossProfit: Math.max(0, gpBudget - sum(rows, 'gp')) + sum(future, 'gp') };
+  const current = rows.filter(row => row.period === currentPeriod);
+  return { revenue: Math.max(0, revenueBudget - sum(rows, 'revenue')) + sum(future, 'revenue'), grossProfit: Math.max(0, gpBudget - sum(rows, 'gp')) + sum(future, 'gp'), currentMonthRevenue: sum(current, 'revenue'), currentMonthGrossProfit: sum(current, 'gp') };
 }
 export function projectClosedInFiscalYear(project, fiscalYear) {
   const entry = [...(project.status_history || [])].reverse().find(row => row.status === 'closed');

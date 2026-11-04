@@ -10,7 +10,7 @@ export async function projectPipelineSummary(base44, user, input) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Halifax', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
   const year = Number(parts.find(part => part.type === 'year').value), month = Number(parts.find(part => part.type === 'month').value);
   const currentPeriod = `${year}-${String(month).padStart(2, '0')}`, fiscalYear = year - (month < 10 ? 1 : 0);
-  const totals = { revenue: 0, grossProfit: 0, activeCount: 0, closedCount: 0, fiscalYear, currentPeriod };
+  const totals = { revenue: 0, grossProfit: 0, currentMonthRevenue: 0, currentMonthGrossProfit: 0, activeCount: 0, closedCount: 0, fiscalYear, currentPeriod };
   const query = { inventory_status: { $nin: ['held', 'sold'] }, ...(assignedId ? { $or: [{ project_manager_id: assignedId }, { sale_id: { $in: scopeSales } }] } : {}) };
   cursor = null;
   do {
@@ -33,9 +33,10 @@ export async function projectPipelineSummary(base44, user, input) {
       totals.activeCount++;
       const remaining = remainingProjectPipeline(project, sales[project.sale_id], forecasts[project.id], currentPeriod);
       totals.revenue += remaining.revenue; totals.grossProfit += remaining.grossProfit;
+      totals.currentMonthRevenue += remaining.currentMonthRevenue; totals.currentMonthGrossProfit += remaining.currentMonthGrossProfit;
     }
     cursor = page.has_more ? page.next_cursor : null;
   } while (cursor);
-  totals.revenue = Math.round(totals.revenue * 100) / 100; totals.grossProfit = Math.round(totals.grossProfit * 100) / 100;
+  for (const field of ['revenue', 'grossProfit', 'currentMonthRevenue', 'currentMonthGrossProfit']) totals[field] = Math.round(totals[field] * 100) / 100;
   return Response.json(totals);
 }
