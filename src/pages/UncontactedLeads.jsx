@@ -26,7 +26,7 @@ export default function UncontactedLeads() {
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const { data: user, isLoading: loadingUser } = useQuery({ queryKey: ['uncontactedLeadUser'], queryFn: () => base44.auth.me() });
   const allowed = hasPermission(user, 'pipeline_leads');
-  const scope = { status: 'imported' };
+  const scope = { status: 'imported', source: { $ne: 'Planning application leads' } };
   const { data: totals, isLoading, isError } = useQuery({
     queryKey: ['uncontactedSources', scope], enabled: !!user && allowed,
     queryFn: () => base44.entities.Lead.aggregate({ query: scope, groupBy: 'source' }),
@@ -56,7 +56,7 @@ export default function UncontactedLeads() {
   const columns = [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
   return <div className="max-w-7xl mx-auto space-y-6">
     <div><h1 className="text-4xl font-bold text-foreground mb-2">Uncontacted Leads</h1><p className="text-lg text-muted-foreground">Review incoming leads by source and move them to the contacted pipeline when ready.</p></div>
-    <div className="flex justify-end"><Button onClick={() => setAddLeadOpen(true)}>Add Lead</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="outline" asChild><Link to="/PlanningApplicationLeads">Frontier Planning Application Leads</Link></Button><Button onClick={() => setAddLeadOpen(true)}>Add Lead</Button></div>
     <AddLeadDialog open={addLeadOpen} onOpenChange={setAddLeadOpen} clients={clients} users={users} initialStatus="imported" />
     {isLoading && <p className="text-sm text-muted-foreground">Loading leads...</p>}
     {isError && <p className="text-sm text-destructive">Unable to load lead sources.</p>}

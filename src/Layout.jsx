@@ -69,6 +69,7 @@ export default function Layout({ children, currentPageName }) {
     {
       label: 'Pipeline',
       items: [
+        { name: 'Planning Application Leads', icon: ClipboardList, page: 'PlanningApplicationLeads', permission: 'pipeline_leads' },
         { name: '1. Uncontacted Lead', icon: Target, page: 'UncontactedLeads', permission: 'pipeline_leads' },
         { name: '2. Contacted Lead', icon: Target, page: 'Leads', permission: 'pipeline_leads' },
         { name: '3. Client', icon: Users, page: 'Clients', permission: 'pipeline_clients' },
