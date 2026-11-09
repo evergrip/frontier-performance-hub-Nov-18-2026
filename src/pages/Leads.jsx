@@ -18,6 +18,7 @@ import EmptyState from '../components/common/EmptyState';
 import EditableTimeline from '../components/common/EditableTimeline';
 import EditLeadDialog from '../components/leads/EditLeadDialog';
 import AddLeadDialog from '../components/leads/AddLeadDialog';
+import LeadActivityButton from '@/components/leads/LeadActivityButton';
 import { createPageUrl } from '../utils';
 
 export default function Leads() {
@@ -387,6 +388,7 @@ export default function Leads() {
                                         <Pencil className="w-3 h-3 text-slate-400" />
                                       </button>
                                     </div>
+                                    <div className="mt-2"><LeadActivityButton lead={lead} users={users} /></div>
                                   </CardContent>
                                 </Card>
                               )}

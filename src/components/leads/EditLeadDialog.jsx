@@ -14,6 +14,7 @@ import LeadSourcePicker from '../common/LeadSourcePicker';
 import EditLogViewer from '../common/EditLogViewer';
 import { computeChanges, logEdit } from '../common/editLogUtils';
 import LeadAttachments from './LeadAttachments';
+import LeadActivityButton from '@/components/leads/LeadActivityButton';
 
 export default function EditLeadDialog({ open, onOpenChange, lead, clients, users, onAdvance, advanceLabel = 'Advance', onConvert, onDisqualify, onDelete, onViewTimeline }) {
   const queryClient = useQueryClient();
@@ -192,6 +193,8 @@ export default function EditLeadDialog({ open, onOpenChange, lead, clients, user
             </Button>
           </div>
         </form>
+
+        <LeadActivityButton lead={lead} users={users} />
 
         {/* Attachments */}
         <div className="border-t pt-4 mt-2">
