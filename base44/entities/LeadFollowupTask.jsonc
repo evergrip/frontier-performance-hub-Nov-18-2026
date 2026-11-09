@@ -33,6 +33,14 @@
     "completed_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "parent_task_id": {
+      "type": "string",
+      "description": "Parent follow-up task for a subtask"
+    },
+    "previous_task_id": {
+      "type": "string",
+      "description": "Previous task this follow-up continues"
     }
   },
   "required": [

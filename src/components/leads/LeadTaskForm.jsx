@@ -5,18 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export default function LeadTaskForm({ lead, user, users }) {
+export default function LeadTaskForm({ lead, user, users = [], parentTask, previousTask }) {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [assignee, setAssignee] = useState(lead.assigned_to || user.id);
   const cache = useQueryClient();
   const people = users.some(person => person.id === user.id) ? users : [...users, user];
   const save = useMutation({
-    mutationFn: () => base44.entities.LeadFollowupTask.create({ lead_id: lead.id, title: title.trim(), due_date: date, assigned_to: assignee, assignee_name: people.find(person => person.id === assignee)?.full_name || 'Team member', status: 'open' }),
+    mutationFn: () => base44.entities.LeadFollowupTask.create({ lead_id: lead.id, title: title.trim(), due_date: date, assigned_to: assignee, assignee_name: people.find(person => person.id === assignee)?.full_name || 'Team member', status: 'open', ...(parentTask ? { parent_task_id: parentTask.id } : {}), ...(previousTask ? { previous_task_id: previousTask.id } : {}) }),
     onSuccess: () => { setTitle(''); setDate(''); cache.invalidateQueries({ queryKey: ['leadTasks', lead.id] }); cache.invalidateQueries({ queryKey: ['myFollowupTasks'] }); },
   });
   return <form className="space-y-2" onSubmit={event => { event.preventDefault(); if (title.trim() && date && assignee && !save.isPending) save.mutate(); }}>
-    <Label htmlFor={`task-title-${lead.id}`}>Follow-up task</Label>
+    <Label htmlFor={`task-title-${lead.id}`}>{parentTask ? 'New subtask' : 'Follow-up task'}</Label>
+    {(parentTask || previousTask) && <p className="text-xs text-muted-foreground">{parentTask ? 'Subtask of' : 'Following up on'}: {(parentTask || previousTask).title}</p>}
     <Input id={`task-title-${lead.id}`} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g., Call to discuss the proposal" maxLength={500} disabled={save.isPending} required />
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <div className="space-y-1"><Label htmlFor={`task-date-${lead.id}`}>Due date</Label><Input id={`task-date-${lead.id}`} type="date" value={date} onChange={event => setDate(event.target.value)} disabled={save.isPending} required /></div>

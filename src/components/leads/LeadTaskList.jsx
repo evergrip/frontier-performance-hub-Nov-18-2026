@@ -4,17 +4,17 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 
-export default function LeadTaskList({ lead, user }) {
+export default function LeadTaskList({ lead, user, parentTaskId }) {
   const cache = useQueryClient();
-  const key = ['leadTasks', lead.id];
+  const key = ['leadTasks', lead.id, parentTaskId || 'all'];
   const query = useInfiniteQuery({
     queryKey: key, initialPageParam: undefined,
-    queryFn: ({ pageParam }) => base44.entities.LeadFollowupTask.filter({ lead_id: lead.id }, { sort: 'due_date', limit: 25, cursor: pageParam }),
+    queryFn: ({ pageParam }) => base44.entities.LeadFollowupTask.filter({ lead_id: lead.id, ...(parentTaskId ? { parent_task_id: parentTaskId } : {}) }, { sort: 'due_date', limit: 25, cursor: pageParam }),
     getNextPageParam: page => page.has_more ? page.next_cursor : undefined,
   });
   const change = useMutation({
     mutationFn: task => base44.entities.LeadFollowupTask.update(task.id, { status: task.status === 'completed' ? 'open' : 'completed', completed_at: task.status === 'completed' ? null : new Date().toISOString() }),
-    onSuccess: () => { cache.invalidateQueries({ queryKey: key }); cache.invalidateQueries({ queryKey: ['myFollowupTasks'] }); },
+    onSuccess: () => { cache.invalidateQueries({ queryKey: ['leadTasks', lead.id] }); cache.invalidateQueries({ queryKey: ['myFollowupTasks'] }); cache.invalidateQueries({ queryKey: ['followupTask'] }); },
   });
   const today = format(new Date(), 'yyyy-MM-dd');
   return <div className="space-y-2">
@@ -27,7 +27,7 @@ export default function LeadTaskList({ lead, user }) {
       return <div key={task.id} className="flex items-start gap-3 rounded-md border bg-card p-3">
         <input type="checkbox" className="mt-1" checked={completed} aria-label={`${completed ? 'Reopen' : 'Complete'} ${task.title}`} disabled={!canChange || change.isPending} onChange={() => change.mutate(task)} />
         <div className="min-w-0 flex-1"><p className={completed ? 'text-sm line-through text-muted-foreground break-words' : 'text-sm font-medium break-words'}>{task.title}</p>
-          <p className="text-xs text-muted-foreground">{task.assignee_name} · Due {task.due_date}</p>
+          <p className="text-xs text-muted-foreground">{task.parent_task_id ? 'Subtask · ' : task.previous_task_id ? 'Follow-up · ' : ''}{task.assignee_name} · Due {task.due_date}</p>
           {!completed && task.due_date < today && <p className="text-xs text-destructive">Overdue</p>}
           {completed && <p className="text-xs text-muted-foreground">Completed{task.completed_at ? ` ${new Date(task.completed_at).toLocaleString()}` : ''}</p>}
         </div>
