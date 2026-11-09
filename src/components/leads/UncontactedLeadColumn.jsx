@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-export default function UncontactedLeadColumn({ group, scope, clients, onOpen, onContact, pending }) {
+export default function UncontactedLeadColumn({ group, scope, clients, onOpen, onContact, onDisqualify, pending }) {
   const query = { ...scope, $or: group.sources.map(source => source == null ? { source: { $exists: false } } : { source }) };
   if (group.sources.includes(null)) query.$or.push({ source: null }, { source: '' });
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
@@ -23,6 +23,7 @@ export default function UncontactedLeadColumn({ group, scope, clients, onOpen, o
       return <Card key={lead.id}><CardContent className="p-3 space-y-2">
         <button type="button" onClick={() => onOpen(lead)} className="w-full text-left"><span className="block text-sm font-medium text-foreground break-words">{lead.title}</span><span className="block text-xs text-muted-foreground">{client?.company_name || client?.contact_name || 'Client details'}</span><span className="block text-xs text-muted-foreground mt-1 break-words">{lead.source || 'No source'}</span></button>
         <Button type="button" variant="outline" size="sm" className="w-full" disabled={pending} onClick={() => onContact(lead)}>Move to Contacted Leads</Button>
+        <Button type="button" variant="ghost" size="sm" className="w-full text-destructive hover:text-destructive" disabled={pending} onClick={() => onDisqualify(lead)}>Disqualify</Button>
       </CardContent></Card>;
     })}</div>
     {hasNextPage && <Button variant="ghost" size="sm" className="mt-3 w-full" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>{isFetchingNextPage ? 'Loading...' : 'Load more'}</Button>}

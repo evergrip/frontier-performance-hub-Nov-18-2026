@@ -5,6 +5,8 @@ import { hasPermission } from '@/lib/permissions';
 import { toast } from 'sonner';
 import EditLeadDialog from '@/components/leads/EditLeadDialog';
 import UncontactedLeadColumn from '@/components/leads/UncontactedLeadColumn';
+import DisqualifyUncontactedLeadDialog from '@/components/leads/DisqualifyUncontactedLeadDialog';
+import { Link } from 'react-router-dom';
 
 function sourceLabel(source) {
   const value = (source || '').trim();
@@ -18,6 +20,7 @@ export default function UncontactedLeads() {
   const queryClient = useQueryClient();
   const [selectedLead, setSelectedLead] = useState(null);
   const [open, setOpen] = useState(false);
+  const [disqualifyLead, setDisqualifyLead] = useState(null);
   const { data: user, isLoading: loadingUser } = useQuery({ queryKey: ['uncontactedLeadUser'], queryFn: () => base44.auth.me() });
   const allowed = hasPermission(user, 'pipeline_leads');
   const scope = user?.role === 'admin' ? { status: 'imported' } : { status: 'imported', assigned_to: user?.id };
@@ -54,7 +57,9 @@ export default function UncontactedLeads() {
     {isError && <p className="text-sm text-destructive">Unable to load lead sources.</p>}
     {totals?.truncated && <p className="text-sm text-destructive">Some lead sources could not be displayed.</p>}
     {!isLoading && !isError && columns.length === 0 && <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">No uncontacted leads to show.</div>}
-    {columns.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">{columns.map(group => <UncontactedLeadColumn key={group.label} group={group} scope={scope} clients={clients} onOpen={lead => { setSelectedLead(lead); setOpen(true); }} onContact={lead => move.mutate(lead)} pending={move.isPending} />)}</div>}
-    <EditLeadDialog open={open} onOpenChange={value => { setOpen(value); if (!value) refresh(); }} lead={selectedLead} clients={clients} users={users} onAdvance={lead => move.mutate(lead)} advanceLabel="Move to Contacted Leads" />
+    {columns.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">{columns.map(group => <UncontactedLeadColumn key={group.label} group={group} scope={scope} clients={clients} onOpen={lead => { setSelectedLead(lead); setOpen(true); }} onContact={lead => move.mutate(lead)} onDisqualify={setDisqualifyLead} pending={move.isPending} />)}</div>}
+    <EditLeadDialog open={open} onOpenChange={value => { setOpen(value); if (!value) refresh(); }} lead={selectedLead} clients={clients} users={users} onAdvance={lead => move.mutate(lead)} advanceLabel="Move to Contacted Leads" onDisqualify={setDisqualifyLead} />
+    {disqualifyLead && <DisqualifyUncontactedLeadDialog key={disqualifyLead.id} lead={disqualifyLead} user={user} onClose={() => setDisqualifyLead(null)} onSuccess={refresh} />}
+    <div className="text-center"><Link to="/DisqualifiedLeads" className="text-sm text-destructive underline underline-offset-4">View Disqualified Leads</Link></div>
   </div>;
 }
