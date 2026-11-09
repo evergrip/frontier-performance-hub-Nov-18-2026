@@ -17,7 +17,7 @@ export default function PlanningApplicationLeads() {
   if (account.isError) return <p role="alert" className="text-destructive">Unable to load your account.</p>;
   if (!allowed) return <p>You do not have permission to view leads.</p>;
   return <div className="max-w-7xl mx-auto space-y-6">
-    <div><h1 className="text-3xl font-bold text-foreground">Frontier Planning Application Leads</h1><p className="mt-2 text-muted-foreground">Review planning application prospects and their contact details separately from incoming leads.</p></div>
+    <div><h1 className="text-3xl font-bold text-foreground">Frontier Planning Application Leads</h1><p className="mt-2 text-muted-foreground">Mark Interested for leads we want to follow up on, or Not interested to pass. These choices do not change the lead’s pipeline stage.</p></div>
     {query.isLoading && <p className="text-sm text-muted-foreground">Loading planning leads...</p>}
     {query.isError && <div role="alert"><p className="text-destructive">Unable to load planning leads.</p><Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div>}
     {query.data?.pages.map((page, index) => <PlanningLeadsTable key={index} leads={page.items} />)}

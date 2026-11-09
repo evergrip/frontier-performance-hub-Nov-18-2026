@@ -114,6 +114,21 @@
     "imported_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "planning_followup_interest": {
+      "type": "string",
+      "enum": [
+        "unreviewed",
+        "interested",
+        "not_interested"
+      ],
+      "enumColors": [
+        "gray",
+        "green",
+        "red"
+      ],
+      "default": "unreviewed",
+      "description": "Whether our team wants to follow up on a planning application lead. Independent of pipeline stage and prospect interest."
     }
   },
   "required": [
