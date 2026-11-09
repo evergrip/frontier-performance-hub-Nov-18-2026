@@ -24,7 +24,7 @@ export async function checkPipeline(entities, type, rows, add) {
         if (!sale) emit('conversion-sale', 'Converted lead has no verifiable destination sale.', 'Existing Sale', r.converted_to_sale_id || 'Missing destination', 'high', 'investigate');
         else if (sale.client_id !== r.client_id || sale.lead_id !== r.id) emit('conversion-reciprocal', 'Lead and destination sale links disagree.', `client ${r.client_id}; lead ${r.id}`, `client ${sale.client_id}; lead ${sale.lead_id}`, 'high');
       }
-      historyCheck(r, 'status_history', ['new_project_lead','initial_video_consult','initial_inperson_consultation','preconstruction_proposal','followup','converted','disqualified'], emit);
+      historyCheck(r, 'status_history', ['imported','new_project_lead','initial_video_consult','initial_inperson_consultation','preconstruction_proposal','followup','converted','disqualified'], emit);
       continue;
     }
     for (const field of ['contract_value', ...(type === 'Project' ? ['actual_costs'] : [])]) if (r[field] != null && (!Number.isFinite(Number(r[field])) || number(r[field]) < 0)) emit(`numeric-${field}`, 'Financial input is invalid or negative.', 'Finite, nonnegative amount', r[field], 'high');

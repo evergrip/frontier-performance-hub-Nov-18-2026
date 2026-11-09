@@ -17,6 +17,7 @@
     "status": {
       "type": "string",
       "enum": [
+        "imported",
         "new_project_lead",
         "initial_video_consult",
         "initial_inperson_consultation",
@@ -87,7 +88,8 @@
           },
           "uploaded_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "When the file was uploaded"
           }
         }
       }

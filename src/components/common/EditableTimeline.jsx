@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 
 const STATUS_LABELS = {
   // Lead statuses
+  imported: 'Imported Leads',
   new_project_lead: 'New Project Lead',
   initial_video_consult: 'Video Consult',
   initial_inperson_consultation: 'In-Person Consult',
