@@ -97,6 +97,23 @@
     "notes": {
       "type": "string",
       "description": "Lead notes"
+    },
+    "external_lead_id": {
+      "type": "string",
+      "description": "Exact Lead ID from the source spreadsheet; used to skip previously imported leads"
+    },
+    "import_spreadsheet_id": {
+      "type": "string",
+      "description": "Source Google spreadsheet ID"
+    },
+    "source_lead_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Original Date column, not the date imported into this app"
+    },
+    "imported_at": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [

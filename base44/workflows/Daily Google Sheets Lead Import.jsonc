@@ -1,0 +1,47 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "daily_google_sheets_lead_import",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "import_new_leads": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "importGoogleSheetLeads",
+            "args": {
+              "dry_run": false
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Import new leads",
+            "description": "November 1, 2026 onward; skip existing Lead IDs"
+          }
+        }
+      }
+    ]
+  },
+  "description": "At 6am Toronto time, append new leads from the selected Combined data tab dated November 1, 2026 or later. Skip previously imported Lead IDs; never modify existing leads or clients. Process up to 100 new leads per run.",
+  "name": "Daily Google Sheets Lead Import",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 6 * * *",
+      "one_time_date": null,
+      "timezone": "America/Toronto",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
