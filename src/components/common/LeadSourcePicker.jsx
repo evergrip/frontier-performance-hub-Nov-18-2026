@@ -44,9 +44,14 @@ export default function LeadSourcePicker({ value, onChange }) {
         <div className="flex gap-2">
           <Select value={value} onValueChange={onChange}>
             <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Select source..." />
+              <SelectValue placeholder="Select source...">
+                {value ? (customSources.find(source => source.value === value)?.name || value) : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
+              {value && !customSources.some(source => source.value === value) && (
+                <SelectItem value={value}>{value}</SelectItem>
+              )}
               {customSources.map(source => (
                 <SelectItem key={source.id} value={source.value}>
                   {source.name}

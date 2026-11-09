@@ -15,7 +15,7 @@ import EditLogViewer from '../common/EditLogViewer';
 import { computeChanges, logEdit } from '../common/editLogUtils';
 import LeadAttachments from './LeadAttachments';
 
-export default function EditLeadDialog({ open, onOpenChange, lead, clients, users, onAdvance, onConvert, onDisqualify, onDelete, onViewTimeline }) {
+export default function EditLeadDialog({ open, onOpenChange, lead, clients, users, onAdvance, advanceLabel = 'Advance', onConvert, onDisqualify, onDelete, onViewTimeline }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({});
 
@@ -215,7 +215,7 @@ export default function EditLeadDialog({ open, onOpenChange, lead, clients, user
             )}
             {onAdvance && (
               <Button size="sm" variant="outline" className="text-xs" onClick={() => { onOpenChange(false); onAdvance(lead); }}>
-                <ChevronRight className="w-3 h-3 mr-1" /> Advance
+                <ChevronRight className="w-3 h-3 mr-1" /> {advanceLabel}
               </Button>
             )}
             {onConvert && (
