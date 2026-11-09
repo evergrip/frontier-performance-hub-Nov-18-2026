@@ -21,6 +21,7 @@ import EmptyState from '../components/common/EmptyState';
 import EditableTimeline from '../components/common/EditableTimeline';
 import AuditItemFixer from '../components/common/AuditItemFixer';
 import EditProjectDetailDialog from '../components/projects/EditProjectDetailDialog';
+import LeadActivityButton from '@/components/leads/LeadActivityButton';
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
 
@@ -602,6 +603,7 @@ export default function Projects() {
                                        </span>
                                      </div>
                                    </div>
+                                   <div className="mt-2"><LeadActivityButton project={project} users={users} /></div>
                                    <p className="text-[10px] mt-0.5">GP allocation schedule available in project details</p>
                                    <Button type="button" size="sm" variant="outline" className="mt-2 text-xs" onClick={e => { e.stopPropagation(); setInventoryMoveProject(project); }}>Move to FBG Inventory</Button>
                                     {(() => {
@@ -875,6 +877,7 @@ export default function Projects() {
               </div>
             )}
 
+            {selectedProject && <LeadActivityButton project={selectedProject} users={users} />}
             {selectedProject && <ProjectProfitActions project={selectedProject} />}
 
                          <div className="flex gap-2 justify-end pt-4">
@@ -1001,6 +1004,7 @@ export default function Projects() {
               </div>
             )}
 
+            {selectedProject && <LeadActivityButton project={selectedProject} users={users} />}
             {selectedProject && <ProjectProfitActions project={selectedProject} />}
 
             <div className="flex gap-2 justify-end pt-4">

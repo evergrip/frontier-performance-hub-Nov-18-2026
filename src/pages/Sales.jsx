@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { hasPermission } from '@/lib/permissions';
 import AuditItemFixer from '../components/common/AuditItemFixer';
 import EditSaleDialog from '../components/sales/EditSaleDialog';
+import LeadActivityButton from '@/components/leads/LeadActivityButton';
 import WeeklyGpForecastDialog from '@/components/sales/WeeklyGpForecastDialog';
 import ConstructionForecast from '../components/projects/ConstructionForecast';
 import PreconAllocationDialog from '../components/projects/PreconAllocationDialog';
@@ -793,6 +794,7 @@ export default function Sales() {
                                         </span>
                                       </div>
                                     </div>
+                                    <div className="mt-2"><LeadActivityButton sale={sale} users={users} /></div>
                                     <p className="mt-1 text-[10px] font-medium text-emerald-700">Est. GP ${Math.round((sale.estimated_construction_budget || 0) * (sale.estimated_margin || 0) / 100).toLocaleString()} · GM {(sale.estimated_margin || 0).toFixed(1)}%</p>
                                     {needsDrawAlert(sale) && (
                                       <div className="mt-1 flex items-center gap-1">
@@ -1655,6 +1657,7 @@ export default function Sales() {
                 </div>
               </div>
 
+              <LeadActivityButton sale={selectedSale} users={users} />
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2">
                 {selectedSale.status !== 'closed_lost' && <Button size="sm" variant="outline" onClick={() => { setDetailDialogOpen(false); setGpForecastSaleId({ saleId: selectedSale.id, forecastScope: 'precon' }); }}>Allocate pre-con monthly GP</Button>}

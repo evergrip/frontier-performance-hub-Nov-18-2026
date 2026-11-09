@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Trash2 } from 'lucide-react';
 import EditLogViewer from '../common/EditLogViewer';
 import { computeChanges, logEdit } from '../common/editLogUtils';
+import LeadActivityButton from '@/components/leads/LeadActivityButton';
 
 const TRACKED_FIELDS = [
   'title', 'contract_value',
@@ -211,6 +212,8 @@ export default function EditProjectDetailDialog({ open, onOpenChange, project, c
             </div>
           </div>
         </form>
+
+        <LeadActivityButton project={project} users={users} />
 
         {/* Edit History */}
         <div className="border-t pt-4 mt-2">

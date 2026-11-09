@@ -32,6 +32,6 @@ export default function LeadNoteHistory({ lead, user }) {
     </article>)}
     {query.data?.pages[0]?.items.length === 0 && <p className="text-sm text-muted-foreground">No conversation notes yet.</p>}
     {query.hasNextPage && <Button variant="outline" size="sm" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>{query.isFetchingNextPage ? 'Loading...' : 'Load older notes'}</Button>}
-    {lead.notes && <div className="border-t pt-3"><p className="text-xs font-semibold text-muted-foreground">Existing lead notes</p><p className="whitespace-pre-wrap break-words text-sm">{lead.notes}</p></div>}
+    {lead.notes && <div className="border-t pt-3"><p className="text-xs font-semibold text-muted-foreground">Existing notes</p><p className="whitespace-pre-wrap break-words text-sm">{lead.notes}</p></div>}
   </section>;
 }
