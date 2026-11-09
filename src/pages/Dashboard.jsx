@@ -27,6 +27,7 @@ import ProjectTypeExportButton from '../components/dashboard/ProjectTypeExportBu
 import { calculateProjectFinancials } from '@/lib/projectFinancials';
 import { calculateAnnualProfitForecast } from '@/lib/profitForecast';
 import useMonthlyPeriodTotals from '@/hooks/useMonthlyPeriodTotals';
+import MyFollowupTasks from '@/components/dashboard/MyFollowupTasks';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -445,6 +446,8 @@ export default function Dashboard() {
       </div>
 
 
+
+      {user && <MyFollowupTasks user={user} />}
 
       {/* Getting Started Checklist - for new companies */}
       <GettingStartedChecklist

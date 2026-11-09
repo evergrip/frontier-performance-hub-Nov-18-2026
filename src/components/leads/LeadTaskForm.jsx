@@ -13,7 +13,7 @@ export default function LeadTaskForm({ lead, user, users }) {
   const people = users.some(person => person.id === user.id) ? users : [...users, user];
   const save = useMutation({
     mutationFn: () => base44.entities.LeadFollowupTask.create({ lead_id: lead.id, title: title.trim(), due_date: date, assigned_to: assignee, assignee_name: people.find(person => person.id === assignee)?.full_name || 'Team member', status: 'open' }),
-    onSuccess: () => { setTitle(''); setDate(''); cache.invalidateQueries({ queryKey: ['leadTasks', lead.id] }); },
+    onSuccess: () => { setTitle(''); setDate(''); cache.invalidateQueries({ queryKey: ['leadTasks', lead.id] }); cache.invalidateQueries({ queryKey: ['myFollowupTasks'] }); },
   });
   return <form className="space-y-2" onSubmit={event => { event.preventDefault(); if (title.trim() && date && assignee && !save.isPending) save.mutate(); }}>
     <Label htmlFor={`task-title-${lead.id}`}>Follow-up task</Label>

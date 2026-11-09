@@ -14,7 +14,7 @@ export default function LeadTaskList({ lead, user }) {
   });
   const change = useMutation({
     mutationFn: task => base44.entities.LeadFollowupTask.update(task.id, { status: task.status === 'completed' ? 'open' : 'completed', completed_at: task.status === 'completed' ? null : new Date().toISOString() }),
-    onSuccess: () => cache.invalidateQueries({ queryKey: key }),
+    onSuccess: () => { cache.invalidateQueries({ queryKey: key }); cache.invalidateQueries({ queryKey: ['myFollowupTasks'] }); },
   });
   const today = format(new Date(), 'yyyy-MM-dd');
   return <div className="space-y-2">
