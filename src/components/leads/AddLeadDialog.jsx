@@ -18,7 +18,7 @@ function getFileIcon(name) {
   return FileText;
 }
 
-export default function AddLeadDialog({ open, onOpenChange, clients, users }) {
+export default function AddLeadDialog({ open, onOpenChange, clients, users, initialStatus = 'new_project_lead' }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef();
 
@@ -111,14 +111,16 @@ export default function AddLeadDialog({ open, onOpenChange, clients, users }) {
         assigned_to: form.assigned_to || undefined,
         notes: form.notes || undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
-        status: 'new_project_lead',
-        status_history: [{ status: 'new_project_lead', entered_date: new Date().toISOString() }],
+        status: initialStatus,
+        status_history: [{ status: initialStatus, entered_date: new Date().toISOString() }],
       });
     },
     onSuccess: () => {
       setUploading(false);
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['clients']);
+      queryClient.invalidateQueries({ queryKey: ['uncontactedSources'] });
+      queryClient.invalidateQueries({ queryKey: ['uncontactedLeads'] });
       onOpenChange(false);
       resetForm();
       toast.success('Lead created');

@@ -7,6 +7,8 @@ import EditLeadDialog from '@/components/leads/EditLeadDialog';
 import UncontactedLeadColumn from '@/components/leads/UncontactedLeadColumn';
 import DisqualifyUncontactedLeadDialog from '@/components/leads/DisqualifyUncontactedLeadDialog';
 import { Link } from 'react-router-dom';
+import AddLeadDialog from '@/components/leads/AddLeadDialog';
+import { Button } from '@/components/ui/button';
 
 function sourceLabel(source) {
   const value = (source || '').trim();
@@ -21,9 +23,10 @@ export default function UncontactedLeads() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [open, setOpen] = useState(false);
   const [disqualifyLead, setDisqualifyLead] = useState(null);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
   const { data: user, isLoading: loadingUser } = useQuery({ queryKey: ['uncontactedLeadUser'], queryFn: () => base44.auth.me() });
   const allowed = hasPermission(user, 'pipeline_leads');
-  const scope = user?.role === 'admin' ? { status: 'imported' } : { status: 'imported', assigned_to: user?.id };
+  const scope = { status: 'imported' };
   const { data: totals, isLoading, isError } = useQuery({
     queryKey: ['uncontactedSources', scope], enabled: !!user && allowed,
     queryFn: () => base44.entities.Lead.aggregate({ query: scope, groupBy: 'source' }),
@@ -35,7 +38,7 @@ export default function UncontactedLeads() {
     mutationFn: async lead => {
       const current = await base44.entities.Lead.get(lead.id);
       if (current.status !== 'imported') throw new Error('This lead has already moved out of Uncontacted Leads.');
-      if (user.role !== 'admin' && current.assigned_to !== user.id) throw new Error('This lead is no longer assigned to you.');
+      if (!allowed) throw new Error('You do not have permission to manage leads.');
       const history = current.status_history?.length ? current.status_history : [{ status: 'imported', entered_date: current.created_date }];
       return base44.entities.Lead.update(current.id, { status: 'new_project_lead', status_history: [...history, { status: 'new_project_lead', entered_date: new Date().toISOString(), source: 'lead' }] });
     },
@@ -53,6 +56,8 @@ export default function UncontactedLeads() {
   const columns = [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
   return <div className="max-w-7xl mx-auto space-y-6">
     <div><h1 className="text-4xl font-bold text-foreground mb-2">Uncontacted Leads</h1><p className="text-lg text-muted-foreground">Review incoming leads by source and move them to the contacted pipeline when ready.</p></div>
+    <div className="flex justify-end"><Button onClick={() => setAddLeadOpen(true)}>Add Lead</Button></div>
+    <AddLeadDialog open={addLeadOpen} onOpenChange={setAddLeadOpen} clients={clients} users={users} initialStatus="imported" />
     {isLoading && <p className="text-sm text-muted-foreground">Loading leads...</p>}
     {isError && <p className="text-sm text-destructive">Unable to load lead sources.</p>}
     {totals?.truncated && <p className="text-sm text-destructive">Some lead sources could not be displayed.</p>}

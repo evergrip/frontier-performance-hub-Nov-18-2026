@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { hasPermission } from '@/lib/permissions';
 
 export default function DisqualifyUncontactedLeadDialog({ lead, user, onClose, onSuccess }) {
   const [reason, setReason] = useState('');
@@ -13,7 +14,7 @@ export default function DisqualifyUncontactedLeadDialog({ lead, user, onClose, o
     mutationFn: async () => {
       const current = await base44.entities.Lead.get(lead.id);
       if (current.status !== 'imported') throw new Error('This lead has already moved out of Uncontacted Leads.');
-      if (user.role !== 'admin' && current.assigned_to !== user.id) throw new Error('This lead is no longer assigned to you.');
+      if (!hasPermission(user, 'pipeline_leads')) throw new Error('You do not have permission to manage leads.');
       const history = current.status_history?.length ? current.status_history : [{ status: 'imported', entered_date: current.created_date }];
       return base44.entities.Lead.update(current.id, {
         status: 'disqualified', disqualification_reason: reason.trim(),
