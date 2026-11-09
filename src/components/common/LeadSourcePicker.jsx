@@ -45,7 +45,7 @@ export default function LeadSourcePicker({ value, onChange }) {
           <Select value={value} onValueChange={onChange}>
             <SelectTrigger className="flex-1">
               <SelectValue placeholder="Select source...">
-                {value ? (customSources.find(source => source.value === value)?.name || value) : undefined}
+                <span>{value ? (customSources.find(source => source.value === value)?.name || value) : 'Select source...'}</span>
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
