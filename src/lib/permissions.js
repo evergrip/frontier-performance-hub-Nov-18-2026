@@ -21,7 +21,7 @@ export const PERMISSION_SECTIONS = [
     key: 'pipeline_leads',
     label: 'Pipeline — Leads',
     description: 'View and manage leads',
-    pages: ['Leads'],
+    pages: ['Leads', 'UncontactedLeads'],
     group: 'Pipeline',
   },
   {

@@ -49,8 +49,8 @@ export default function Leads() {
   });
 
   const { data: leads = [] } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => base44.entities.Lead.list('-created_date'),
+    queryKey: ['leads', 'contacted'],
+    queryFn: () => base44.entities.Lead.filter({ status: { $ne: 'imported' } }, '-created_date'),
     initialData: [],
   });
 
@@ -228,7 +228,6 @@ export default function Leads() {
   };
 
   const statusColumns = [
-    { status: 'imported', label: 'Imported Leads', color: 'bg-card border-border' },
     { status: 'new_project_lead', label: 'New Project Lead', color: 'bg-blue-100 border-blue-200' },
     { status: 'initial_video_consult', label: 'Video Consult', color: 'bg-purple-100 border-purple-200' },
     { status: 'initial_inperson_consultation', label: 'In-Person Consult', color: 'bg-indigo-100 border-indigo-200' },
@@ -249,7 +248,7 @@ export default function Leads() {
   const salespeopleWithLeads = [...new Set(leads.map(l => l.assigned_to).filter(Boolean))];
 
   const getNextStatus = (currentStatus) => {
-    const statuses = ['imported', 'new_project_lead', 'initial_video_consult', 'initial_inperson_consultation', 'preconstruction_proposal', 'followup'];
+    const statuses = ['new_project_lead', 'initial_video_consult', 'initial_inperson_consultation', 'preconstruction_proposal', 'followup'];
     const currentIndex = statuses.indexOf(currentStatus);
     return currentIndex < statuses.length - 1 ? statuses[currentIndex + 1] : null;
   };
@@ -269,7 +268,7 @@ export default function Leads() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-4xl font-bold text-slate-900 mb-2">Lead Pipeline</h1>
+        <h1 className="text-4xl font-bold text-slate-900 mb-2">Contacted Leads</h1>
         <p className="text-lg text-slate-500">Track potential projects from first contact through proposal — drag cards to advance stages</p>
       </div>
 
@@ -344,7 +343,7 @@ export default function Leads() {
 
       {activeLeads.length > 0 ? (
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {statusColumns.map(column => {
               const columnLeads = activeLeads.filter(l => l.status === column.status);
               return (

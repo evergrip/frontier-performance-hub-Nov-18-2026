@@ -70,9 +70,10 @@ export default function Layout({ children, currentPageName }) {
       label: 'Pipeline',
       items: [
         { name: '1. Clients', icon: Users, page: 'Clients', permission: 'pipeline_clients' },
-        { name: '2. Leads', icon: Target, page: 'Leads', permission: 'pipeline_leads' },
-        { name: '3. Pre-Construction', icon: Briefcase, page: 'Sales', permission: 'pipeline_precon' },
-        { name: '4. Projects', icon: Building2, page: 'Projects', permission: 'pipeline_projects' },
+        { name: '2. Contacted Leads', icon: Target, page: 'Leads', permission: 'pipeline_leads' },
+        { name: '3. Uncontacted Leads', icon: Target, page: 'UncontactedLeads', permission: 'pipeline_leads' },
+        { name: '4. Pre-Construction', icon: Briefcase, page: 'Sales', permission: 'pipeline_precon' },
+        { name: '5. Projects', icon: Building2, page: 'Projects', permission: 'pipeline_projects' },
       ]
     },
     {
