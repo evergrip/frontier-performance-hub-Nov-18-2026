@@ -47,6 +47,9 @@ export default function LeadSourcePicker({ value, onChange }) {
               <SelectValue placeholder="Select source..." />
             </SelectTrigger>
             <SelectContent>
+              {value && !customSources.some(source => source.value === value) && (
+                <SelectItem value={value}>{value}</SelectItem>
+              )}
               {customSources.map(source => (
                 <SelectItem key={source.id} value={source.value}>
                   {source.name}
