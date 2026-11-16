@@ -78,20 +78,20 @@ export default function Leads() {
         converted_to_sale_id: sale.id
       });
       
-      // Process commission for preconstruction sale
-      await base44.functions.invoke('processCommission', {
-        sale_id: sale.id,
-        sale_type: 'preconstruction'
-      });
-      
       return sale;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['leads']);
-      queryClient.invalidateQueries(['sales']);
+    onSuccess: (sale) => {
       setSaleDialogOpen(false);
+      setEditDialogOpen(false);
       setSaleForm({ contract_value: '', estimated_construction_budget: '', estimated_margin: '', target_precon_completion_date: '' });
       toast.success('Lead converted to preconstruction sale');
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      // Conversion is saved; commission processing must not keep its window open.
+      base44.functions.invoke('processCommission', { sale_id: sale.id, sale_type: 'preconstruction' })
+        .then(response => { if (response.data?.error) throw new Error(response.data.error); })
+        .catch(() => toast.warning('Lead converted successfully, but commission processing needs admin review. Do not convert again.'))
+        .finally(() => queryClient.invalidateQueries({ queryKey: ['commission-transactions'] }));
     },
     onError: () => toast.error('Failed to convert lead')
   });
@@ -167,6 +167,8 @@ export default function Leads() {
   };
 
   const openSaleDialog = (lead) => {
+    if (convertToSaleMutation.isPending) return;
+    convertToSaleMutation.reset();
     setSelectedLead(lead);
     setSaleForm({
       contract_value: lead.estimated_precon_value || '',
@@ -185,6 +187,7 @@ export default function Leads() {
 
   const handleConvertToSale = (e) => {
     e.preventDefault();
+    if (!selectedLead || convertToSaleMutation.isPending || convertToSaleMutation.isSuccess) return;
     
     // Carry lead timeline into the sale's phase_history
     const leadHistory = (selectedLead.status_history?.length > 0

@@ -258,14 +258,16 @@ export default function Sales() {
       return response.data;
     },
     onError: error => toast.error(error.response?.data?.error || error.message),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['sales']);
-      queryClient.invalidateQueries(['projects']);
-      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
-      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
+    onSuccess: (result) => {
       setConstructionDialogOpen(false);
+      setDetailDialogOpen(false);
       setConstructionForm({ final_precon_value: '', construction_budget: '' });
       toast.success('Converted to construction project');
+      if (result.commission_warning) toast.warning(result.commission_warning);
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
     }
   });
 
@@ -304,6 +306,8 @@ export default function Sales() {
   };
 
   const openConstructionDialog = (sale) => {
+    if (convertToConstructionMutation.isPending) return;
+    convertToConstructionMutation.reset();
     setSelectedSale(sale);
     setConstructionForm({
       final_precon_value: sale.contract_value || '',
@@ -357,6 +361,7 @@ export default function Sales() {
 
   const handleConvertToConstruction = (e) => {
     e.preventDefault();
+    if (!selectedSale || convertToConstructionMutation.isPending || convertToConstructionMutation.isSuccess || !convertAuditPassed) return;
     if (!constructionForm.final_precon_value || !constructionForm.construction_budget) {
       toast.error('Please fill in all fields');
       return;
@@ -545,18 +550,22 @@ export default function Sales() {
       } else if (action === 'convert') {
         const response = await base44.functions.invoke('convertPreconToConstruction', { saleId: sale.id, constructionBudget: Number(constructionForm.construction_budget) });
         if (response.data.error) throw new Error(response.data.error);
+        return response.data;
       }
       return { success: true };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['sales']);
-      queryClient.invalidateQueries(['projects']);
-      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
-      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
+    onError: error => toast.error(error.response?.data?.error || error.message),
+    onSuccess: (result, { action }) => {
       setReopenPreconDialogOpen(false);
+      setDetailDialogOpen(false);
       setReopenAction('reopen');
       setConstructionForm({ final_precon_value: '', construction_budget: '' });
-      toast.success(reopenAction === 'convert' ? 'Converted to construction project' : 'Pre-construction sale reopened');
+      toast.success(action === 'convert' ? 'Converted to construction project' : 'Pre-construction sale reopened');
+      if (result.commission_warning) toast.warning(result.commission_warning);
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['fiscalProfitProgress'] });
+      queryClient.invalidateQueries({ queryKey: ['quarterProfitBreakdown'] });
     }
   });
 
@@ -915,10 +924,10 @@ export default function Sales() {
                               )}
                               {!hasConstructionSale && sale.status === 'closed_won' && (
                                 <>
-                                  <Button size="sm" variant="outline" className="text-xs" onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); setReopenAction('reopen'); setReopenPreconDialogOpen(true); }}>
+                                  <Button size="sm" variant="outline" className="text-xs" onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); reopenPreconMutation.reset(); setReopenAction('reopen'); setReopenPreconDialogOpen(true); }}>
                                     Reopen
                                   </Button>
-                                  <Button size="sm" variant="outline" className="text-xs bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100" onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); setConstructionForm({ final_precon_value: sale.contract_value || '', construction_budget: sale.estimated_construction_budget || '' }); setReopenAction('convert'); setReopenPreconDialogOpen(true); }}>
+                                  <Button size="sm" variant="outline" className="text-xs bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100" onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); setConstructionForm({ final_precon_value: sale.contract_value || '', construction_budget: sale.estimated_construction_budget || '' }); reopenPreconMutation.reset(); setReopenAction('convert'); setReopenPreconDialogOpen(true); }}>
                                     <Building2 className="w-3 h-3 mr-1" /> Convert to Construction
                                   </Button>
                                 </>
@@ -1473,9 +1482,9 @@ export default function Sales() {
               <Button
                 className={reopenAction === 'convert' ? 'bg-amber-600 hover:bg-amber-700' : ''}
                 disabled={reopenPreconMutation.isPending || reopenPreconMutation.isSuccess || (reopenAction === 'convert' && !constructionForm.construction_budget)}
-                onClick={() => reopenPreconMutation.mutate({ sale: selectedSale, action: reopenAction })}
+                onClick={() => { if (!reopenPreconMutation.isPending && !reopenPreconMutation.isSuccess) reopenPreconMutation.mutate({ sale: selectedSale, action: reopenAction }); }}
               >
-                {reopenAction === 'convert' ? (
+                {reopenPreconMutation.isPending ? 'Processing...' : reopenAction === 'convert' ? (
                   <><Building2 className="w-4 h-4 mr-2" /> Convert to Construction</>
                 ) : (
                   'Reopen Sale'

@@ -23,8 +23,21 @@ export default async function(req) {
     if (job.existing) { const forecast = await base44.entities.GrossProfitForecast.update(job.existing.id, { job_key: job.key, project_id: project.id }); await syncGpTiming(base44, job, forecast); }
     const phase_history = precon.status === 'closed_won' ? precon.phase_history || [] : [...(precon.phase_history || []), { status: 'closed_won', entered_date: new Date().toISOString(), source: 'sale' }];
     await base44.entities.Sale.update(precon.id, { status: 'closed_won', contract_value: Number(finalValue), phase_history, converted_to_project_id: project.id });
-    if (finalPreconValue != null) await base44.functions.invoke('processCommission', { sale_id: precon.id, sale_type: 'preconstruction', final_amount: finalValue, is_update: true });
-    await base44.functions.invoke('processCommission', { sale_id: constructionSale.id, sale_type: 'construction' });
-    return Response.json({ constructionSale, project });
+    // The conversion is committed. A downstream commission error is not a failed conversion.
+    let commissionWarning;
+    const commissionRequests = [
+      ...(finalPreconValue != null ? [{ sale_id: precon.id, sale_type: 'preconstruction', final_amount: finalValue, is_update: true }] : []),
+      { sale_id: constructionSale.id, sale_type: 'construction' }
+    ];
+    for (const payload of commissionRequests) {
+      try {
+        const result = await base44.functions.invoke('processCommission', payload);
+        if (result.data?.error) throw new Error(result.data.error);
+      } catch (error) {
+        console.error('Commission processing after successful conversion', payload.sale_id, error.message);
+        commissionWarning = 'Conversion saved successfully, but commission processing needs admin review. Do not convert again.';
+      }
+    }
+    return Response.json({ constructionSale, project, commission_warning: commissionWarning });
   } catch (error) { return Response.json({ error: error.message }, { status: 400 }); }
 }
