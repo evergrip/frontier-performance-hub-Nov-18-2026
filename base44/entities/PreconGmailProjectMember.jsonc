@@ -1,0 +1,41 @@
+{
+  "name": "PreconGmailProjectMember",
+  "type": "object",
+  "description": "Explicit project team membership for the Pre-Con Gmail pilot. Only administrators manage enrollment. Add one record per person and project.",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "user_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "project_id",
+    "user_id"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

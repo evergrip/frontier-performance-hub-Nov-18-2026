@@ -1,0 +1,72 @@
+{
+  "name": "PreconGmailProjectShare",
+  "type": "object",
+  "description": "Server-managed record of a confirmed one-message share. The full message and attachment bytes are kept in private storage, not in this record.",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_name": {
+      "type": "string"
+    },
+    "recipient_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gmail_message_id": {
+      "type": "string"
+    },
+    "gmail_thread_id": {
+      "type": "string"
+    },
+    "shared_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attachment_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "snapshot_uri": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "type": "string",
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "project_id",
+    "actor_id",
+    "recipient_ids",
+    "gmail_message_id",
+    "gmail_thread_id",
+    "shared_at",
+    "attachment_names",
+    "snapshot_uri"
+  ],
+  "rls": {
+    "read": false,
+    "create": {
+      "user_condition": {
+        "collaborator_role": "editor"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "collaborator_role": "editor"
+      }
+    },
+    "delete": false
+  }
+}
