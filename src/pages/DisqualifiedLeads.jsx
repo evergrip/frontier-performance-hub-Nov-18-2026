@@ -39,20 +39,19 @@ export default function DisqualifiedLeads() {
     initialData: [],
   });
 
-  const disqualifiedLeads = leads.filter(l => {
-    if (l.status !== 'disqualified') return false;
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    const clientName = getClientName(l.client_id).toLowerCase();
-    return (l.title || '').toLowerCase().includes(q) ||
-           clientName.includes(q) ||
-           (l.disqualification_reason || '').toLowerCase().includes(q);
-  });
-
   const getClientName = (clientId) => {
     const client = clients.find(c => c.id === clientId);
     return client?.company_name || client?.contact_name || 'Unknown Client';
   };
+
+  const q = searchQuery.trim().toLowerCase();
+  const disqualifiedLeads = leads.filter(l => {
+    if (l.status !== 'disqualified') return false;
+    if (!q) return true;
+    return (l.title || '').toLowerCase().includes(q) ||
+           getClientName(l.client_id).toLowerCase().includes(q) ||
+           (l.disqualification_reason || '').toLowerCase().includes(q);
+  });
 
   const allDisqualifiedCount = leads.filter(l => l.status === 'disqualified').length;
 
