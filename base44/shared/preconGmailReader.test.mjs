@@ -11,6 +11,17 @@ test('inbox loads ten and sends private search to Gmail',async()=>{
   };
   assert.deepEqual((await gmailPage(api,{query:'from:client'})).messages.map(m=>m.subject),['Quotation']);
 });
+test('mixed search results preserve the recipient and identify sent messages by Gmail label',async()=>{
+  const api = async path => {
+    if (path === 'messages') return {messages:[{id:'sent'},{id:'received'}]};
+    const id = path.split('/')[1], sent = id === 'sent', raw = email(id);
+    raw.payload.headers.push({name:'From',value:sent ? 'me@example.com' : 'client@example.com'}, {name:'To',value:sent ? 'client@example.com' : 'me@example.com'});
+    return {...raw, labelIds:[sent ? 'SENT' : 'INBOX']};
+  };
+  const {messages} = await gmailPage(api,{query:'Quotation'});
+  assert.deepEqual(messages.map(({isSent,from,to}) => isSent ? to : from), ['client@example.com','client@example.com']);
+  assert.deepEqual(messages.map(({isSent}) => isSent), [true,false]);
+});
 test('thread reads full bodies and never downloads named attachments while opening',async()=>{
   const api=async(path,params)=>{assert.equal(path,'threads/t1');assert.equal(params.format,'full');return {messages:[email('m1'),email('m2')]};};
   const result=await gmailThread(api,'t1');

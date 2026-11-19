@@ -10,7 +10,7 @@ export default function usePreconGmailInbox() {
     if (lock.current) return;
     lock.current = true; setPending(true); setError('');
     try { await fn(); }
-    catch (e) { const missing = gmailStatus(e) === 412; if (missing) {setPage(null);setThread(null);setCanConnect(true);} else setError(gmailError(e,fallback)); }
+    catch (e) { const missing = gmailStatus(e) === 412; if (missing) {setPage(null);setThread(null);setCanConnect(true);} setError(gmailError(e,fallback)); }
     finally { lock.current = false; setPending(false); }
   },[]);
   const load = useCallback((query = '',cursor = '') => run(async()=>{
@@ -23,19 +23,22 @@ export default function usePreconGmailInbox() {
     base44.auth.isAuthenticated().then(ok=>{ if (active) {setAuth(ok);if(ok) load();} }).catch(()=>{if(active) setAuth(false);});
     return ()=>{active=false;clearInterval(timer.current);};
   },[load]);
-  function connect() {
-    if (lock.current) return;
+  function connect(onReturn, onError = setError) {
+    if (lock.current) {onError('Wait for Gmail to finish loading, then try reconnecting.');return;}
     const popup = window.open('about:blank','_blank');
-    if (!popup) {setError('Allow pop-ups to connect Gmail.');return;}
+    if (!popup) {onError('Allow pop-ups to reconnect Gmail, then try again.');return;}
     popup.opener = null;
     void run(async()=>{
       try { popup.location.href = await base44.connectors.connectAppUser(GMAIL_CONNECTOR); }
-      catch(e) {popup.close();throw e;}
+      catch {popup.close();onError('Could not open Google consent. Try reconnecting again.');return;}
       clearInterval(timer.current);
       const deadline = Date.now() + 5 * 60 * 1000;
       timer.current = setInterval(()=>{
         if (!popup.closed && Date.now() < deadline) return;
-        clearInterval(timer.current);load();
+        clearInterval(timer.current);
+        if (!popup.closed) {onError('Google consent did not finish. Close the consent window and try again.');return;}
+        load();
+        onReturn?.();
       },700);
     },'Could not open Gmail consent.');
   }
