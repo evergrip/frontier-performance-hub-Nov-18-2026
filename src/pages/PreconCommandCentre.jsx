@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { hasPermission } from '@/lib/permissions';
-import { PRECON_OS_ENABLED } from '@/components/precon/PreconFeature';
 import ProcessReferenceStep from '@/components/precon/ProcessReferenceStep';
 import PreconRehearsal from '@/components/precon/PreconRehearsal';
 import PreconAutomationAudit from '@/components/precon/PreconAutomationAudit';
@@ -12,19 +11,18 @@ import PreconEmailSharingPreview from '@/components/precon/PreconEmailSharingPre
 import PreconGmailInbox from '@/components/precon/PreconGmailInbox';
 
 export default function PreconCommandCentre() {
-  const { data: user, isLoading: userLoading } = useQuery({ queryKey: ['currentUser'], queryFn: () => base44.auth.me(), enabled: PRECON_OS_ENABLED });
+  const { data: user, isLoading: userLoading } = useQuery({ queryKey: ['currentUser'], queryFn: () => base44.auth.me() });
   const permitted = hasPermission(user, 'pipeline_precon');
   const { data: page, isLoading, isError } = useQuery({
-    queryKey: ['precon-process-reference'], enabled: PRECON_OS_ENABLED && permitted,
+    queryKey: ['precon-process-reference'], enabled: permitted,
     queryFn: () => base44.entities.ProcessMap.filter({ title: 'Pre-Con Process' }, { sort: '-updated_date', limit: 1 }),
   });
-  if (!PRECON_OS_ENABLED) return <p className="text-sm text-muted-foreground">The Pre-Con preview is disabled in production builds.</p>;
-  if (userLoading) return <p className="text-sm text-muted-foreground">Loading preview…</p>;
+  if (userLoading) return <p className="text-sm text-muted-foreground">Loading Command Centre…</p>;
   if (!permitted) return <p className="text-sm text-muted-foreground">You do not have access to pre-construction.</p>;
   const map = page?.items?.[0];
   const count = (map?.sections || []).reduce((sum, section) => sum + (section.section_steps || []).length, 0);
   return <div className="mx-auto max-w-5xl space-y-6">
-    <header><p className="text-xs font-semibold uppercase tracking-widest text-primary">Stage 1 · Development preview</p><h1 className="mt-2 font-heading text-3xl font-bold">Pre-Con Command Centre</h1><p className="mt-2 max-w-3xl text-muted-foreground">Rehearse how work is assigned, reviewed and unblocked without touching existing projects.</p></header>
+    <header><p className="text-xs font-semibold uppercase tracking-widest text-primary">Stage 1</p><h1 className="mt-2 font-heading text-3xl font-bold">Pre-Con Command Centre</h1><p className="mt-2 max-w-3xl text-muted-foreground">Review the Pre-Construction process and access your connected Gmail inbox.{user.role === 'admin' && ' Rehearsal tools do not change existing projects.'}</p></header>
     <PreconGmailInbox key={user.id} userId={user.id} />
     {user?.role === 'admin' && <><PreconMasterDraft /><PreconEmailSharingPreview /><PreconCommunicationRehearsal /><PreconRehearsal /><PreconAutomationAudit /></>}
     <div className="border border-border bg-card p-5"><h2 className="font-heading font-semibold">Separate process reference</h2><p className="mt-2 text-sm text-muted-foreground">The map below is the existing hub reference, not the 34-stage master draft or the high-level 22-step source cited in the permit timing decision.</p></div>

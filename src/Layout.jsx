@@ -11,7 +11,6 @@ import {
 import { Button } from '@/components/ui/button';
 import FloatingReportButton from '@/components/devlog/FloatingReportButton';
 import { isKpiEnabled, KPI_PAGES } from '@/lib/features';
-import { PRECON_OS_ENABLED } from '@/components/precon/PreconFeature';
 
 const PUBLIC_PAGES = ['SurveyPublic'];
 
@@ -75,7 +74,7 @@ export default function Layout({ children, currentPageName }) {
         { name: '2. Contacted Lead', icon: Target, page: 'Leads', permission: 'pipeline_leads' },
         { name: '3. Client', icon: Users, page: 'Clients', permission: 'pipeline_clients' },
         { name: '4. Pre-Construction', icon: Briefcase, page: 'Sales', permission: 'pipeline_precon' },
-        ...(PRECON_OS_ENABLED ? [{ name: 'Pre-Con Command Centre', icon: ClipboardList, page: 'PreconCommandCentre', permission: 'pipeline_precon' }] : []),
+        { name: 'Pre-Con Command Centre', icon: ClipboardList, page: 'PreconCommandCentre', permission: 'pipeline_precon' },
         { name: '5. Project', icon: Building2, page: 'Projects', permission: 'pipeline_projects' },
       ]
     },
