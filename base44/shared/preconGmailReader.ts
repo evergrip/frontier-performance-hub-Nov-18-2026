@@ -93,7 +93,10 @@ export async function gmailPage(api, {query = '', cursor = ''} = {}) {
   const messages = [];
   for (let offset = 0; offset < refs.length; offset += 5) {
     const batch = await Promise.all(refs.slice(offset,offset+5).map(async ({id}) => {
-      try { return summarizeGmail(await api(`messages/${gmailId(id)}`, {format:'metadata'})); }
+      try {
+        const message = await api(`messages/${gmailId(id)}`, {format:'metadata'});
+        return { ...summarizeGmail(message), isSent: message.labelIds?.includes('SENT') ?? false };
+      }
       catch (e) { if (e instanceof GmailPilotError && e.status === 404) return null; throw e; }
     }));
     messages.push(...batch.filter(Boolean));
