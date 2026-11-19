@@ -21,11 +21,11 @@ export default function PreconGmailInbox({userId}) {
     {inbox.auth === null ? <p role="status">Checking sign-in…</p> : !inbox.auth ? <Button onClick={()=>base44.auth.redirectToLogin()}>Sign in to connect Gmail</Button> : <>
       {inbox.pending && <p className="text-sm" role="status">Loading Gmail…</p>}
       {inbox.error && <p className="text-sm text-destructive" role="alert">{inbox.error}</p>}
+      <Button type="button" onClick={()=>compose('compose')}>Compose email</Button>
       {!inbox.page ? <div className="flex flex-wrap gap-2">
-        {inbox.canConnect && <Button disabled={inbox.pending} onClick={inbox.connect}>Connect My Gmail</Button>}
+        {inbox.canConnect && <Button disabled={inbox.pending} onClick={()=>inbox.connect()}>Reconnect Gmail</Button>}
         {!inbox.pending && <Button variant="outline" onClick={()=>inbox.load()}>Check connection</Button>}
       </div> : <>
-        <Button type="button" disabled={inbox.pending} onClick={()=>compose('compose')}>Compose email</Button>
         <form className="flex flex-wrap items-end gap-2" onSubmit={e=>{e.preventDefault();inbox.load(query.trim());}}>
           <label className="min-w-48 flex-1 text-sm">Search my Gmail<Input value={query} onChange={e=>setQuery(e.target.value)} maxLength={500} placeholder="e.g. from:client@example.com" /></label>
           <Button disabled={inbox.pending}>Search</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={()=>{setQuery('');inbox.load();}}>Latest inbox</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={()=>{setQuery('in:sent');inbox.load('in:sent');}}>Sent mail</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={inbox.disconnect}>Disconnect Gmail</Button>
@@ -38,7 +38,7 @@ export default function PreconGmailInbox({userId}) {
       <PreconGmailProjectHistory userId={userId} revision={revision} />
     </>}
     {inbox.thread && !share && !composer && <Dialog open onOpenChange={v=>{if(!v)inbox.closeThread();}}><DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Gmail conversation</DialogTitle><DialogDescription>Private to your connected Gmail account.</DialogDescription></DialogHeader>{inbox.thread.messages.map(m=><PreconGmailMessage key={m.id} message={m}><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={()=>compose('reply',m.id)}>Reply</Button><Button size="sm" variant="outline" onClick={()=>compose('replyAll',m.id)}>Reply all</Button><Button size="sm" variant="outline" onClick={()=>compose('forward',m.id)}>Forward</Button><Button size="sm" onClick={()=>{setNotice('');setShare(m);}}>Share with Project</Button></div></PreconGmailMessage>)}</DialogContent></Dialog>}
-    {composer && <PreconGmailComposer request={composer} onClose={()=>setComposer(null)} onSent={sent} onReconnect={()=>{setComposer(null);inbox.connect();}} />}
+    {composer && <PreconGmailComposer request={composer} onClose={()=>setComposer(null)} onSent={sent} onReconnect={inbox.connect} />}
     {share && <PreconGmailShareDialog userId={userId} message={share} onClose={()=>setShare(null)} onShared={()=>{setShare(null);inbox.closeThread();setRevision(n=>n+1);setNotice('The selected email was shared with the confirmed project recipients.');}} />}
   </section>;
 }

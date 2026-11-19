@@ -1,6 +1,6 @@
 import MailComposer from 'npm:nodemailer@7.0.13/lib/mail-composer/index.js';
 import addressparser from 'npm:nodemailer@7.0.13/lib/addressparser/index.js';
-import { currentGmailToken, currentMailbox, gmailId, GmailPilotError, unpackGmail } from './preconGmailReader.ts';
+import { currentGmailToken, currentMailbox, gmailId, GmailPilotError, googleDiagnostics, unpackGmail } from './preconGmailReader.ts';
 
 const scope = value => `https://www.googleapis.com/auth/${value}`;
 const modes = ['compose','reply','replyAll','forward'];
@@ -18,19 +18,27 @@ const recipients = value => {
   if (list.length > 25 || list.some(v=>!address.test(v))) throw new GmailPilotError('Enter valid email addresses separated by commas (up to 25 per field).');
   return unique(list);
 };
-const missing = () => new GmailPilotError('Gmail sending is not authorized. Choose Reconnect Gmail and approve read and send access for the same account.',403);
+const missing = details => new GmailPilotError('Gmail read and send access are both required. Choose Reconnect Gmail and approve both permissions for the same mailbox.',412,details);
 
 export async function gmailOutgoing(base44, input, fetcher = fetch) {
   if (!modes.includes(input.mode) || (input.action === 'send' && input.confirmed !== true)) throw new GmailPilotError('Review the message and explicitly confirm it before sending.');
   const token = await currentGmailToken(base44);
   const infoUrl = new URL('https://oauth2.googleapis.com/tokeninfo');
   infoUrl.searchParams.set('access_token',token);
-  const inspection = await fetcher(infoUrl,{signal:AbortSignal.timeout(10000),redirect:'error',cache:'no-store'});
-  if ([400,401].includes(inspection.status)) throw new GmailPilotError('Reconnect Gmail and check the account permissions again.',412);
-  if (!inspection.ok) throw new GmailPilotError('Google could not verify Gmail permissions. Try again.',502);
+  // Never follow a redirect on a request containing the employee's access token.
+  const inspection = await fetcher(infoUrl.toString(),{signal:AbortSignal.timeout(10000),redirect:'manual'}).catch(() => {
+    throw new GmailPilotError('Could not reach Google to verify Gmail permissions. Try again.',502,{step:'scope_check'});
+  });
+  if (!inspection.ok) {
+    const details = await googleDiagnostics(inspection,'scope_check');
+    if ([400,401].includes(inspection.status)) throw new GmailPilotError('Google could not validate the Gmail connection. Choose Reconnect Gmail.',412,details);
+    throw new GmailPilotError('Google could not verify Gmail permissions. Try again.',502,details);
+  }
   const {scope: grant} = await inspection.json();
-  const approved = new Set(typeof grant === 'string' ? grant.split(/\s+/) : []);
-  if (!approved.has(scope('gmail.readonly')) || !approved.has(scope('gmail.send'))) throw missing();
+  if (typeof grant !== 'string') throw new GmailPilotError('Google did not report the Gmail permissions. Try again.',502,{step:'scope_check',googleStatus:inspection.status});
+  const approved = new Set(grant.split(/\s+/));
+  const missingPermissions = ['gmail.readonly','gmail.send'].filter(permission => !approved.has(scope(permission)));
+  if (missingPermissions.length) throw missing({step:'scope_check',googleStatus:inspection.status,missingPermissions});
   const api = await currentMailbox(base44,fetcher,token);
   const {emailAddress: from} = await api('profile');
   if (!address.test(from || '')) throw new GmailPilotError('Gmail did not identify the connected mailbox.',502);
@@ -65,12 +73,16 @@ export async function gmailOutgoing(base44, input, fetcher = fetch) {
   const raw = (await message.compile().build()).toString('base64url');
   const response = await fetcher('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
     method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
-    body:JSON.stringify({raw,...(replying ? {threadId:mail.threadId} : {})}),signal:AbortSignal.timeout(15000),redirect:'error'
-  }).catch(()=>{throw new GmailPilotError('Gmail did not confirm whether the message was sent. Check Sent mail before trying again.',502);});
-  if (response.status === 401) throw new GmailPilotError('Your Gmail connection expired. Reconnect Gmail before sending.',412);
-  if (response.status === 403) throw missing();
-  if (response.status === 429) throw new GmailPilotError('Gmail is busy. Check Sent mail before trying again.',429);
-  if (!response.ok) throw new GmailPilotError('Gmail did not confirm the send. Check Sent mail before trying again.',502);
+    body:JSON.stringify({raw,...(replying ? {threadId:mail.threadId} : {})}),signal:AbortSignal.timeout(15000),redirect:'manual'
+  }).catch(()=>{throw new GmailPilotError('Gmail did not confirm whether the message was sent. Check Sent mail before trying again.',502,{step:'gmail_send'});});
+  if (!response.ok) {
+    const details = await googleDiagnostics(response,'gmail_send');
+    if (response.status === 401) throw new GmailPilotError('Your Gmail connection expired. Choose Reconnect Gmail before sending.',412,details);
+    if (response.status === 403 && ['ACCESS_TOKEN_SCOPE_INSUFFICIENT','insufficientPermissions'].includes(details.googleCode)) throw missing(details);
+    if (response.status === 403) throw new GmailPilotError('Google blocked this send. Check your Google Workspace policy.',403,details);
+    if (response.status === 429) throw new GmailPilotError('Gmail is busy. Check Sent mail before trying again.',429,details);
+    throw new GmailPilotError('Gmail did not confirm the send. Check Sent mail before trying again.',502,details);
+  }
   const sent = await response.json();
   return {id:sent.id,threadId:sent.threadId};
 }

@@ -1,9 +1,18 @@
 export const GMAIL_CONNECTOR = '6afefd8bd586a64d6638c478';
 export class GmailPilotError extends Error {
   status;
-  constructor(message, status = 400) { super(message); this.status = status; }
+  diagnostics;
+  constructor(message, status = 400, diagnostics = undefined) { super(message); this.status = status; this.diagnostics = diagnostics; }
 }
-export const sdkStatus = e => e.status ?? e.response?.status;
+export const sdkStatus = e => e?.status ?? e?.response?.status;
+export async function googleDiagnostics(response, step) {
+  const body = await response.json().catch(() => null);
+  const error = body?.error;
+  const codes = [typeof error === 'string' ? error : error?.status, ...((Array.isArray(error?.errors) ? error.errors : []).map(item => item?.reason)), ...((Array.isArray(error?.details) ? error.details : []).map(item => item?.reason))];
+  const allowed = new Set(['invalid_token','invalid_grant','invalid_request','UNAUTHENTICATED','PERMISSION_DENIED','ACCESS_TOKEN_SCOPE_INSUFFICIENT','SERVICE_DISABLED','RESOURCE_EXHAUSTED','NOT_FOUND','INVALID_ARGUMENT','authError','insufficientPermissions','forbidden','domainPolicy','notFound','rateLimitExceeded','userRateLimitExceeded','accessNotConfigured','backendError']);
+  const googleCode = codes.filter(code => allowed.has(code)).at(-1);
+  return {step,googleStatus:response.status,...(googleCode ? {googleCode} : {})};
+}
 export const gmailId = value => {
   if (typeof value !== 'string' || !/^[\w-]{1,200}$/.test(value)) throw new GmailPilotError('Invalid Gmail reference.');
   return value;
@@ -11,10 +20,11 @@ export const gmailId = value => {
 
 export async function currentGmailToken(base44) {
   const connection = await base44.asServiceRole.connectors.getCurrentAppUserConnection(GMAIL_CONNECTOR).catch(e => {
-    if ([401, 404].includes(sdkStatus(e))) return null;
+    const status = sdkStatus(e);
+    if ([401, 404, 412].includes(status)) return null;
     throw e;
   });
-  if (!connection?.accessToken) throw new GmailPilotError('Connect your Gmail account to continue.', 412);
+  if (!connection?.accessToken) throw new GmailPilotError('No active Gmail connection was found for your sign-in. Choose Reconnect Gmail to continue.', 412,{step:'employee_connection'});
   return connection.accessToken;
 }
 
@@ -23,12 +33,19 @@ export async function currentMailbox(base44, fetcher = fetch, accessToken = null
   return async (path, params = {}) => {
     const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`);
     url.search = new URLSearchParams(params).toString();
-    const response = await fetcher(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
-    if (response.status === 404) throw new GmailPilotError('This email is not available in your Gmail account.', 404);
-    if (response.status === 401) throw new GmailPilotError('Reconnect your Gmail account to continue.', 412);
-    if (response.status === 403) throw new GmailPilotError('Google denied read access. Check your Gmail consent or Workspace policy.', 403);
-    if (response.status === 429) throw new GmailPilotError('Gmail is busy. Try again shortly.', 429);
-    if (!response.ok) throw new GmailPilotError('Gmail did not respond successfully. Try again.', 502);
+    const step = path === 'profile' ? 'gmail_profile' : 'gmail_read';
+    const response = await fetcher(url, { headers: { Authorization: `Bearer ${token}` }, redirect:'manual', signal: AbortSignal.timeout(12000) }).catch(() => {
+      throw new GmailPilotError('Could not reach Gmail. Try again.',502,{step});
+    });
+    if (!response.ok) {
+      const details = await googleDiagnostics(response,step);
+      if (response.status === 404) throw new GmailPilotError('This email is not available in your Gmail account.',404,details);
+      if (response.status === 401) throw new GmailPilotError('Google rejected the Gmail connection. Choose Reconnect Gmail.',412,details);
+      if (response.status === 403 && ['ACCESS_TOKEN_SCOPE_INSUFFICIENT','insufficientPermissions'].includes(details.googleCode)) throw new GmailPilotError('Gmail read access was not granted. Choose Reconnect Gmail and approve read access.',412,details);
+      if (response.status === 403) throw new GmailPilotError('Google denied access to Gmail. Check your Google Workspace policy or whether the Gmail API is enabled.',403,details);
+      if (response.status === 429) throw new GmailPilotError('Gmail is busy. Try again shortly.',429,details);
+      throw new GmailPilotError('Gmail did not respond successfully. Try again.',502,details);
+    }
     return response.json();
   };
 }
