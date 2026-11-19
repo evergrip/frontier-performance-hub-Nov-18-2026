@@ -6,12 +6,11 @@ import { hasPermission } from '@/lib/permissions';
 import { useQuery } from '@tanstack/react-query';
 import { 
   LayoutDashboard, Users, Target, Briefcase, Building2, 
-  Settings, Menu, X, ChevronRight, LogOut, DollarSign, CalendarDays, Upload, Flag, Wrench, MessageSquare, Megaphone, ClipboardList, Wallet, Bell, PieChart, FileText, FolderOpen, Map, Bug 
+  Settings, Menu, X, ChevronRight, LogOut, DollarSign, CalendarDays, Upload, Flag, Wrench, Megaphone, ClipboardList, Wallet, Bell, PieChart, FolderOpen, Map, Bug
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FloatingReportButton from '@/components/devlog/FloatingReportButton';
 import { isKpiEnabled, KPI_PAGES } from '@/lib/features';
-import { PRECON_OS_ENABLED } from '@/components/precon/PreconFeature';
 
 const PUBLIC_PAGES = ['SurveyPublic'];
 
@@ -49,7 +48,7 @@ export default function Layout({ children, currentPageName }) {
           base44.auth.redirectToLogin();
           return;
         }
-      } catch (error) {
+      } catch {
         if (!PUBLIC_PAGES.includes(currentPageName)) {
           base44.auth.redirectToLogin();
           return;
@@ -75,7 +74,7 @@ export default function Layout({ children, currentPageName }) {
         { name: '2. Contacted Lead', icon: Target, page: 'Leads', permission: 'pipeline_leads' },
         { name: '3. Client', icon: Users, page: 'Clients', permission: 'pipeline_clients' },
         { name: '4. Pre-Construction', icon: Briefcase, page: 'Sales', permission: 'pipeline_precon' },
-        ...(PRECON_OS_ENABLED ? [{ name: 'Pre-Con Command Centre', icon: ClipboardList, page: 'PreconCommandCentre', permission: 'pipeline_precon' }] : []),
+        { name: 'Pre-Con Command Centre', icon: ClipboardList, page: 'PreconCommandCentre', permission: 'pipeline_precon' },
         { name: '5. Project', icon: Building2, page: 'Projects', permission: 'pipeline_projects' },
       ]
     },
