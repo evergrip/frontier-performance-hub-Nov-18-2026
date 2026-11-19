@@ -9,16 +9,21 @@ export const gmailId = value => {
   return value;
 };
 
-export async function currentMailbox(base44, fetcher = fetch) {
+export async function currentGmailToken(base44) {
   const connection = await base44.asServiceRole.connectors.getCurrentAppUserConnection(GMAIL_CONNECTOR).catch(e => {
     if ([401, 404].includes(sdkStatus(e))) return null;
     throw e;
   });
   if (!connection?.accessToken) throw new GmailPilotError('Connect your Gmail account to continue.', 412);
+  return connection.accessToken;
+}
+
+export async function currentMailbox(base44, fetcher = fetch, accessToken = null) {
+  const token = accessToken ?? await currentGmailToken(base44);
   return async (path, params = {}) => {
     const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`);
     url.search = new URLSearchParams(params).toString();
-    const response = await fetcher(url, { headers: { Authorization: `Bearer ${connection.accessToken}` }, signal: AbortSignal.timeout(12000) });
+    const response = await fetcher(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) });
     if (response.status === 404) throw new GmailPilotError('This email is not available in your Gmail account.', 404);
     if (response.status === 401) throw new GmailPilotError('Reconnect your Gmail account to continue.', 412);
     if (response.status === 403) throw new GmailPilotError('Google denied read access. Check your Gmail consent or Workspace policy.', 403);
