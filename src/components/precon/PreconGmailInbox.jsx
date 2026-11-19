@@ -24,9 +24,9 @@ export default function PreconGmailInbox({userId}) {
       </div> : <>
         <form className="flex flex-wrap items-end gap-2" onSubmit={e=>{e.preventDefault();inbox.load(query.trim());}}>
           <label className="min-w-48 flex-1 text-sm">Search my Gmail<Input value={query} onChange={e=>setQuery(e.target.value)} maxLength={500} placeholder="e.g. from:client@example.com" /></label>
-          <Button disabled={inbox.pending}>Search</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={()=>{setQuery('');inbox.load();}}>Latest inbox</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={inbox.disconnect}>Disconnect Gmail</Button>
+          <Button disabled={inbox.pending}>Search</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={()=>{setQuery('');inbox.load();}}>Latest inbox</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={()=>{setQuery('in:sent');inbox.load('in:sent');}}>Sent mail</Button><Button type="button" variant="outline" disabled={inbox.pending} onClick={inbox.disconnect}>Disconnect Gmail</Button>
         </form>
-        <h3 className="text-sm font-semibold">{submitted ? `Results for ${submitted}` : 'Latest inbox emails'}</h3>
+        <h3 className="text-sm font-semibold">{submitted === 'in:sent' ? 'Sent mail' : submitted ? `Results for ${submitted}` : 'Latest inbox emails'}</h3>
         {inbox.page.messages.length ? <ul className="divide-y border">{inbox.page.messages.map((m,index)=><li key={`${m.id}-${index}`}><button className="block w-full break-words p-3 text-left text-sm hover:bg-primary/10" disabled={inbox.pending} onClick={()=>inbox.open(m.threadId)}><strong>{m.subject}</strong><span className="mt-1 block text-muted-foreground">{m.from} · {gmailDate(m.date)}</span></button></li>)}</ul> : <p className="text-sm">No matching emails.</p>}
         {submitted && inbox.page.nextCursor && <Button variant="outline" disabled={inbox.pending} onClick={()=>inbox.load(submitted,inbox.page.nextCursor)}>More results</Button>}
       </>}
