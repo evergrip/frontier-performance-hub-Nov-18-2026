@@ -11,6 +11,7 @@ import { createPageUrl } from '../utils';
 import { toast } from 'sonner';
 import EditLeadDialog from '../components/leads/EditLeadDialog';
 import DisqualifiedLeadInfoDialog from '../components/leads/DisqualifiedLeadInfoDialog';
+import DisqualifiedLeadExport from '@/components/leads/DisqualifiedLeadExport';
 
 export default function DisqualifiedLeads() {
   const queryClient = useQueryClient();
@@ -102,14 +103,17 @@ export default function DisqualifiedLeads() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Link to={createPageUrl('Leads')}>
-          <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Disqualified Leads</h1>
-          <p className="text-sm text-slate-500">{allDisqualifiedCount} disqualified leads</p>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Link to={createPageUrl('Leads')}>
+            <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Disqualified Leads</h1>
+            <p className="text-sm text-slate-500">{allDisqualifiedCount} disqualified leads</p>
+          </div>
         </div>
+        <DisqualifiedLeadExport />
       </div>
 
       <div className="relative">
