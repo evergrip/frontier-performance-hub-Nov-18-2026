@@ -10,6 +10,7 @@ import PreconCommunicationRehearsal from '@/components/precon/PreconCommunicatio
 import PreconEmailSharingPreview from '@/components/precon/PreconEmailSharingPreview';
 import PreconGmailInbox from '@/components/precon/PreconGmailInbox';
 import PreconOperationalWorkflow from '@/components/precon/PreconOperationalWorkflow';
+import PreconBuildertrendPilot from '@/components/precon/PreconBuildertrendPilot';
 
 export default function PreconCommandCentre() {
   const { data: user, isLoading: userLoading } = useQuery({ queryKey: ['currentUser'], queryFn: () => base44.auth.me() });
@@ -24,6 +25,7 @@ export default function PreconCommandCentre() {
   const count = (map?.sections || []).reduce((sum, section) => sum + (section.section_steps || []).length, 0);
   return <div className="mx-auto max-w-5xl space-y-6">
     <header><p className="text-xs font-semibold uppercase tracking-widest text-primary">Stage 1</p><h1 className="mt-2 font-heading text-3xl font-bold">Pre-Con Command Centre</h1><p className="mt-2 max-w-3xl text-muted-foreground">Review the Pre-Construction process and access your connected Gmail inbox.{user.role === 'admin' && ' Rehearsal tools do not change existing projects.'}</p></header>
+    {user.role === 'admin' && <PreconBuildertrendPilot key={`buildertrend-${user.id}`} userId={user.id} />}
     <PreconOperationalWorkflow key={user.id} user={user} />
     <PreconGmailInbox key={user.id} userId={user.id} />
     {user?.role === 'admin' && <><PreconMasterDraft /><PreconEmailSharingPreview /><PreconCommunicationRehearsal /><PreconRehearsal /><PreconAutomationAudit /></>}
