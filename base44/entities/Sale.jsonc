@@ -248,22 +248,6 @@
     "notes": {
       "type": "string",
       "description": "Sale notes"
-    },
-    "precon_workflow_run_id": {
-      "type": "string",
-      "description": "Server-managed pointer to the canonical Pre-Con workflow instance",
-      "rls": {
-        "create": {
-          "user_condition": {
-            "collaborator_role": "editor"
-          }
-        },
-        "update": {
-          "user_condition": {
-            "collaborator_role": "editor"
-          }
-        }
-      }
     }
   },
   "required": [

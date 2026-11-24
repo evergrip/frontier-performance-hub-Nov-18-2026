@@ -11,7 +11,6 @@ import { createPageUrl } from '../utils';
 import { toast } from 'sonner';
 import EditLeadDialog from '../components/leads/EditLeadDialog';
 import DisqualifiedLeadInfoDialog from '../components/leads/DisqualifiedLeadInfoDialog';
-import DisqualifiedLeadExport from '@/components/leads/DisqualifiedLeadExport';
 
 export default function DisqualifiedLeads() {
   const queryClient = useQueryClient();
@@ -40,19 +39,20 @@ export default function DisqualifiedLeads() {
     initialData: [],
   });
 
+  const disqualifiedLeads = leads.filter(l => {
+    if (l.status !== 'disqualified') return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const clientName = getClientName(l.client_id).toLowerCase();
+    return (l.title || '').toLowerCase().includes(q) ||
+           clientName.includes(q) ||
+           (l.disqualification_reason || '').toLowerCase().includes(q);
+  });
+
   const getClientName = (clientId) => {
     const client = clients.find(c => c.id === clientId);
     return client?.company_name || client?.contact_name || 'Unknown Client';
   };
-
-  const q = searchQuery.trim().toLowerCase();
-  const disqualifiedLeads = leads.filter(l => {
-    if (l.status !== 'disqualified') return false;
-    if (!q) return true;
-    return (l.title || '').toLowerCase().includes(q) ||
-           getClientName(l.client_id).toLowerCase().includes(q) ||
-           (l.disqualification_reason || '').toLowerCase().includes(q);
-  });
 
   const allDisqualifiedCount = leads.filter(l => l.status === 'disqualified').length;
 
@@ -103,17 +103,14 @@ export default function DisqualifiedLeads() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Link to={createPageUrl('Leads')}>
-            <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Disqualified Leads</h1>
-            <p className="text-sm text-slate-500">{allDisqualifiedCount} disqualified leads</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Link to={createPageUrl('Leads')}>
+          <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Disqualified Leads</h1>
+          <p className="text-sm text-slate-500">{allDisqualifiedCount} disqualified leads</p>
         </div>
-        <DisqualifiedLeadExport />
       </div>
 
       <div className="relative">
