@@ -7,6 +7,10 @@ const num = (value, min = 0, max = Infinity) => typeof value === 'number' && Num
 const str = (value, max = 3000) => typeof value === 'string' && value.length <= max;
 const staffShape = ({ id, name, department, hours_per_week, start_date, end_date }) => ({ id, name, department, hours_per_week, start_date, end_date });
 const firstSettings = async E => (await E.CompanySettings.list({ sort: 'created_date', limit: 1 })).items[0];
+const validScopeCosts = r => str(r.scope_name, 200) && r.scope_name.trim() && str(r.cost_code, 100) && str(r.subtrade_id, 100) && str(r.sub_name, 200) && costFields.every(k => num(r[k]));
+const scopeCosts = r => ({ scope_name: r.scope_name.trim(), cost_code: r.cost_code, subtrade_id: r.subtrade_id, sub_name: r.subtrade_id ? '' : r.sub_name, ...Object.fromEntries(costFields.map(k => [k, r[k]])) });
+const validSheetOps = r => typeof r.inhouse_feasible === 'boolean' && num(r.inhouse_hours) && num(r.inhouse_extra_materials) && num(r.inhouse_share, 0, 100) && (!r.inhouse_share || (r.inhouse_feasible && r.inhouse_hours > 0)) && (r.scheduled_start_month === '' || month(r.scheduled_start_month)) && Number.isInteger(r.duration_months) && num(r.duration_months, 1, 120);
+const sheetOps = r => r == null ? {} : ({ inhouse_feasible: r.inhouse_feasible, inhouse_hours: r.inhouse_hours, inhouse_extra_materials: r.inhouse_extra_materials, inhouse_share: r.inhouse_share, scheduled_start_month: r.scheduled_start_month, duration_months: r.duration_months });
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -83,14 +87,24 @@ export default async function(req: Request): Promise<Response> {
     const job = jobs.find(j => j.id === jobId);
     if (!job || job.bucket === 'Complete') return reply('This job is not available for edits.', 404);
     if (action === 'estimate') {
-      const { start_month, job_number, override_contract_price, labour_rate_override, notes } = data;
+      const { start_month, job_number, override_contract_price, labour_rate_override, notes, rows = [] } = data;
       if (!month(start_month) || !str(job_number, 100) || !str(notes) || (override_contract_price != null && !num(override_contract_price)) || (labour_rate_override != null && !num(labour_rate_override))) return reply('Check the estimate details.');
+      if (!Array.isArray(rows) || rows.length > 500 || rows.some(r => !r || (r.id != null && (!str(r.id, 100) || !r.id)) || !validScopeCosts(r))) return reply('Check the scope names and costs (up to 500 changed rows per save).');
+      const ids = rows.filter(r => r.id).map(r => r.id);
+      if (new Set(ids).size !== ids.length || (ids.length && (!job.estimate || await E.DeliveryScope.count({ id: { $in: ids }, estimate_id: job.estimate.id }) !== ids.length))) return reply('A scope no longer belongs to this estimate. Reopen the editor.', 409);
+      const trades = [...new Set(rows.map(r => r.subtrade_id).filter(Boolean))];
+      if (trades.length && await E.Subtrade.count({ id: { $in: trades } }) !== trades.length) return reply('A selected subtrade no longer exists.');
+      if (rows.some(r => r.operations != null) && (!canOperate || !committed(job))) return reply('Only Operations can save in-house allocations, and only on committed jobs.', 403);
+      if (rows.some(r => r.operations != null && !validSheetOps(r.operations))) return reply('Check the in-house hours, mix and schedule. A nonzero mix requires in-house hours.');
       const patch = { start_month, job_number, override_contract_price, labour_rate_override, notes, ...(job.type === 'Project' ? { project_id: job.id } : {}) };
-      if (job.estimate) return Response.json(await E.DeliveryEstimate.update(job.estimate.id, patch));
       const link = job.saleId ? { sale_id: job.saleId } : { project_id: job.id };
-      const key = Object.keys(link)[0];
-      const result = await E.DeliveryEstimate.upsert([{ ...patch, ...link, prepared_by: user.id }], { key });
-      return Response.json(result.records[0]);
+      const estimate = job.estimate ? await E.DeliveryEstimate.update(job.estimate.id, patch) :
+        (await E.DeliveryEstimate.upsert([{ ...patch, ...link, prepared_by: user.id }], { key: Object.keys(link)[0] })).records[0];
+      const edits = rows.filter(r => r.id).map(r => ({ id: r.id, ...scopeCosts(r), ...sheetOps(r.operations) }));
+      const fresh = rows.filter(r => !r.id).map(r => ({ estimate_id: estimate.id, ...scopeCosts(r), ...sheetOps(r.operations) }));
+      if (edits.length) await E.DeliveryScope.bulkUpdate(edits);
+      if (fresh.length) await E.DeliveryScope.bulkCreate(fresh);
+      return Response.json(estimate);
     }
     if (!job.estimate) return reply('Create the estimate first.', 404);
     if (action === 'applyForecast') {
@@ -108,10 +122,9 @@ export default async function(req: Request): Promise<Response> {
     if (action === 'deleteScope') {
       await E.DeliveryScope.delete(scope.id);
     } else if (action === 'scopeEstimate') {
-      const { scope_name, cost_code, subtrade_id, sub_name } = data;
-      if (!str(scope_name, 200) || !scope_name.trim() || !str(cost_code, 100) || !str(subtrade_id, 100) || !str(sub_name, 200) || !costFields.every(k => num(data[k]))) return reply('Enter a scope name and valid costs.');
-      if (subtrade_id && !(await E.Subtrade.count({ id: subtrade_id }))) return reply('The selected subtrade no longer exists.');
-      const patch = { scope_name: scope_name.trim(), cost_code, subtrade_id, sub_name: subtrade_id ? '' : sub_name, ...Object.fromEntries(costFields.map(k => [k, data[k]])) };
+      if (!validScopeCosts(data)) return reply('Enter a scope name and valid costs.');
+      if (data.subtrade_id && !(await E.Subtrade.count({ id: data.subtrade_id }))) return reply('The selected subtrade no longer exists.');
+      const patch = scopeCosts(data);
       if (scope) await E.DeliveryScope.update(scope.id, patch); else await E.DeliveryScope.create({ ...patch, estimate_id: job.estimate.id });
     } else {
       const patch = {};

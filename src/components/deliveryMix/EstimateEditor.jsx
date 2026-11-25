@@ -1,12 +1,38 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { cad, committed, pct, priceJob } from '@/lib/deliveryMix';
 import MixDialog from '@/components/deliveryMix/MixDialog';
 import MixFields from '@/components/deliveryMix/MixFields';
+import EstimateSheetRow from '@/components/deliveryMix/EstimateSheetRow';
+import { asMoney, changedScopeRows, newScopeRow, scopeCosts, scopeOperations } from '@/components/deliveryMix/estimateSheetValues';
 
-const fields = [['job_number','Job number'],['start_month','Start month','month',{required:true}],['override_contract_price','Contract price override (CAD)','number',{min:0,step:'0.01'}],['labour_rate_override','All-in labour rate override (CAD/hour)','number',{min:0,step:'0.01'}],['notes','Notes','textarea',{maxLength:3000}]];
+const basicFields = [['start_month','Start month','month',{required:true}], ['job_number','Job number','text',{maxLength:100}]];
+const options = [['override_contract_price','Price override (CAD)','number',{min:0,step:'0.01'}], ['labour_rate_override','Labour rate override (CAD/hr)','number',{min:0,step:'0.01'}], ['notes','Estimate notes','textarea',{maxLength:3000}]];
+const headers = ['Scope', 'Subtrade', 'Sub quote', 'In-house hrs', 'In-house mix', 'Sub total', ''];
+const currentMonth = () => new Intl.DateTimeFormat('sv-SE', { timeZone:'America/Toronto', year:'numeric', month:'2-digit' }).format(new Date());
 
-export default function EstimateEditor({ job, save, onClose }) {
-  const [values, setValues] = useState({ job_number: '', start_month: '', notes: '', ...job.estimate });
-  return <MixDialog title={job.estimate ? 'Edit estimate' : 'Create estimate'} description={job.title} onClose={onClose} onSave={() => save({ action: 'estimate', jobId: job.id, data: Object.fromEntries(fields.map(([key, , type]) => [key, type === 'number' ? (values[key] === '' || values[key] == null ? null : Number(values[key])) : values[key] || ''])) })}>
-    <MixFields fields={fields} values={values} setValues={setValues} />
+export default function EstimateEditor({ job, settings, subtrades, canOperate, add, focus, save, onClose }) {
+  const [values, setValues] = useState(() => ({ start_month: job.allocations[0]?.period || currentMonth(), ...job.estimate }));
+  const [original] = useState(() => new Map(job.scopes.map(row => [row.id, row])));
+  const [rows, setRows] = useState(() => [...original.values(), ...(!original.size || add ? [newScopeRow()] : [])]);
+  const [focusRow, setFocusRow] = useState(focus || (add || !job.scopes.length ? rows.at(-1)?.rowKey : null));
+  const canSchedule = canOperate && committed(job);
+  const estimate = { start_month: values.start_month, job_number: values.job_number || '', notes: values.notes || '', override_contract_price: asMoney(values.override_contract_price), labour_rate_override: asMoney(values.labour_rate_override) };
+  const preview = priceJob({ ...job, estimate }, rows.map(row => ({ ...scopeCosts(row), ...scopeOperations(row) })), settings);
+  const saveSheet = () => {
+    const edits = changedScopeRows(rows, original, canSchedule);
+    if (edits.some(row => !row.scope_name)) throw new Error('Give each filled row a scope name before saving.');
+    return save({ action: 'estimate', jobId: job.id, data: { ...estimate, rows: edits } });
+  };
+  return <MixDialog sheet title={job.estimate ? 'Edit estimate' : 'Create estimate'} description={job.title} submit="Save estimate" onClose={onClose} onSave={saveSheet}>
+    <div className="grid grid-cols-2 gap-3 sm:max-w-sm"><MixFields fields={basicFields} values={values} setValues={setValues} /></div>
+    <details><summary className="w-fit cursor-pointer text-sm text-muted-foreground">Price, labour rate &amp; notes</summary><div className="mt-2 grid gap-3 sm:grid-cols-3"><MixFields fields={options} values={values} setValues={setValues} /></div></details>
+    <p className="text-xs text-muted-foreground">Enter full in-house hours to unlock the mix slider. {canSchedule ? 'For crew capacity, set a crew start in Details.' : 'In-house inputs are a preview only and won’t be saved.'}</p>
+    <div className="overflow-x-auto rounded-md border"><table className="w-full min-w-[780px] table-fixed text-sm" aria-label="Estimate spreadsheet">
+      <colgroup><col className="w-[21%]" /><col className="w-[19%]" /><col className="w-[12%]" /><col className="w-[11%]" /><col className="w-[17%]" /><col className="w-[10%]" /><col className="w-[10%]" /></colgroup>
+      <thead className="bg-muted text-left text-xs"><tr>{headers.map((header, index) => <th scope="col" key={header} className={`p-2 ${index === 5 ? 'text-right' : ''}`}>{header || <span className="sr-only">Actions</span>}</th>)}</tr></thead>
+      <tbody>{rows.map((row, index) => { const key = row.id || row.rowKey; return <EstimateSheetRow key={key} row={row} index={index} trades={subtrades} canSchedule={canSchedule} focus={key === focusRow} onChange={patch => setRows(current => current.map(item => (item.id || item.rowKey) === key ? {...item,...patch} : item))} onRemove={() => setRows(current => current.filter(item => item.rowKey !== key))} />; })}</tbody>
+    </table></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><Button type="button" variant="outline" onClick={() => { const row = newScopeRow(); setRows(current => [...current, row]); setFocusRow(row.rowKey); }}>+ Add row</Button><div className="flex flex-wrap gap-x-5 gap-y-1 text-sm tabular-nums"><span>Price <strong>{cad(preview.price)}</strong></span><span>GP <strong>{cad(preview.gp)}</strong></span><span>Margin <strong>{pct(preview.gm)}</strong></span></div></div>
   </MixDialog>;
 }
