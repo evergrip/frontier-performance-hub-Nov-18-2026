@@ -21,9 +21,19 @@
       "type": "number",
       "minimum": 0
     },
+    "sub_supplies_materials": {
+      "type": "boolean",
+      "description": "Whether the subcontractor quote includes materials."
+    },
     "materials_by_frontier": {
       "type": "number",
-      "minimum": 0
+      "minimum": 0,
+      "description": "Frontier material cost for this full scope. If the quote includes materials, this cost only applies to the in-house share; otherwise Frontier supplies all materials."
+    },
+    "frontier_material_markup_pct": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Optional cost markup for materials supplied by Frontier in the all-subcontracted baseline. Blank uses standard pricing."
     },
     "selections": {
       "type": "number",

@@ -7,7 +7,7 @@ export function estimateTargetHours({ price, baselineCogs, scopes }, rate) {
     index,
     share: scope.inhouse_feasible ? scope.inhouse_share / 100 : 0,
     quote: scope.sub_quote,
-    extras: scope.inhouse_extra_materials,
+    extras: scope.inhouseNonLabour,
   })).filter(scope => scope.share > 0);
   if (!(baselineCogs > 0)) return { reason: 'Enter the scope costs first.' };
   if (!(price > 0)) return { reason: 'Enter a valid contract price first.' };

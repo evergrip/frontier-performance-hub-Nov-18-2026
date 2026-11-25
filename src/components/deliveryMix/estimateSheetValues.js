@@ -8,6 +8,8 @@ export function scopeCosts(row) {
   return {
     scope_name: (row.scope_name || '').trim(), cost_code: row.cost_code || '',
     subtrade_id: row.subtrade_id || '', sub_name: row.subtrade_id ? '' : row.sub_name || '',
+    sub_supplies_materials: !!row.sub_supplies_materials,
+    frontier_material_markup_pct: asMoney(row.frontier_material_markup_pct),
     ...Object.fromEntries(costFields.map(key => [key, Number(row[key] || 0)])),
   };
 }

@@ -62,10 +62,12 @@ export async function getDeliveryJobs(entities) {
 export const committed = (job) => job.bucket === 'Signed' || job.bucket === 'In construction';
 export const costFields = ['sub_quote', 'materials_by_frontier', 'selections', 'equipment', 'other'];
 export function forecastValues(estimate, scopes, settings) {
-  const baseline = scopes.reduce((sum, s) => sum + costFields.reduce((cost, key) => cost + (s[key] || 0), 0), 0);
-  const price = estimate.override_contract_price > 0 ? estimate.override_contract_price : baseline / (1 - (settings.baseline_gm ?? 25) / 100);
+  const baseline = scopes.reduce((sum, s) => sum + costFields.reduce((cost, key) => cost + (key === 'materials_by_frontier' && s.sub_supplies_materials ? 0 : (s[key] || 0)), 0), 0);
+  const factor = 1 - (settings.baseline_gm ?? 25) / 100;
+  const materialAdjustment = scopes.reduce((total, s) => total + (!s.sub_supplies_materials && s.frontier_material_markup_pct != null ? (s.materials_by_frontier || 0) * (1 + s.frontier_material_markup_pct / 100 - 1 / factor) : 0), 0);
+  const price = estimate.override_contract_price > 0 ? estimate.override_contract_price : baseline / factor + materialAdjustment;
   const rate = estimate.labour_rate_override ?? settings.labour_rate ?? 50;
   const valid = scopes.filter(s => s.inhouse_feasible && s.inhouse_hours > 0 && s.inhouse_share > 0);
-  const added = valid.reduce((sum, s) => sum + ((s.sub_quote || 0) - s.inhouse_hours * rate - (s.inhouse_extra_materials || 0)) * s.inhouse_share / 100, 0);
+  const added = valid.reduce((sum, s) => sum + ((s.sub_quote || 0) - s.inhouse_hours * rate - (s.inhouse_extra_materials || 0) - (s.sub_supplies_materials ? (s.materials_by_frontier || 0) : 0)) * s.inhouse_share / 100, 0);
   return { estimated_margin: price > 0 ? ((baseline > 0 ? price - baseline : 0) + added) / price * 100 : 0, forecast_build_type: valid.length ? 'mixed' : 'subcontractor' };
 }

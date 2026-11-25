@@ -11,23 +11,31 @@ export const pct = (n, digits = 1) => n == null ? '—' : `${n.toFixed(digits)}%
 export const hrs = n => n == null ? '—' : `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 1 }).format(n)} h`;
 export const preciseHours = n => `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 2 }).format(n)} h`;
 const sum = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
-const subCost = s => costFields.reduce((total, key) => total + (s[key] || 0), 0);
+const subCost = s => costFields.reduce((total, key) => total + (key === 'materials_by_frontier' && s.sub_supplies_materials ? 0 : (s[key] || 0)), 0);
 const tiers = [[45,'Maximum in-house'],[40,'Predominantly in-house'],[35,'Balanced hybrid'],[30,'Predominantly subbed'],[25,'Fully subbed']];
 
 export function priceJob(job, scopes, settings) {
   const estimate = job.estimate;
   const cost = scopes.reduce((total, s) => total + subCost(s), 0);
-  const price = estimate?.override_contract_price > 0 ? estimate.override_contract_price : cost / (1 - settings.baseline_gm / 100);
+  const marginFactor = 1 - settings.baseline_gm / 100;
+  const automaticPrices = scopes.map(scope => {
+    const material = !scope.sub_supplies_materials && scope.frontier_material_markup_pct != null ? (scope.materials_by_frontier || 0) : 0;
+    return (subCost(scope) - material) / marginFactor + material * (1 + (scope.frontier_material_markup_pct ?? 0) / 100);
+  });
+  const hasOverride = estimate?.override_contract_price > 0;
+  const price = hasOverride ? estimate.override_contract_price : automaticPrices.reduce((total, sell) => total + sell, 0);
   const rate = estimate?.labour_rate_override ?? settings.labour_rate;
-  const priced = scopes.map(scope => {
-    const baseCost = subCost(scope), sell = cost ? price * baseCost / cost : 0;
+  const priced = scopes.map((scope, index) => {
+    const baseCost = subCost(scope), sell = hasOverride ? (cost ? price * baseCost / cost : 0) : automaticPrices[index];
     const inHours = scope.inhouse_hours || 0, requested = scope.inhouse_share || 0;
     const invalid = requested > 0 && (!scope.inhouse_feasible || !inHours);
     const share = invalid ? 0 : requested / 100;
-    const fullAdded = (scope.sub_quote || 0) - inHours * rate - (scope.inhouse_extra_materials || 0);
+    const replacementMaterials = scope.sub_supplies_materials ? (scope.materials_by_frontier || 0) : 0;
+    const inhouseNonLabour = replacementMaterials + (scope.inhouse_extra_materials || 0);
+    const fullAdded = (scope.sub_quote || 0) - inHours * rate - inhouseNonLabour;
     const baseline = sell - baseCost, added = fullAdded * share, hours = inHours * share;
     const months = deliveryMonths(scope.scheduled_start_month, scope.duration_months || 1);
-    return { ...scope, job, baseCost, sell, baseline, fullAdded, fullInhouseCost: baseCost - fullAdded, added, hours, finalCost: baseCost - added, gp: baseline + added, ratePerHour: inHours ? fullAdded / inHours : null, share, invalid, months };
+    return { ...scope, job, baseCost, sell, baseline, inhouseNonLabour, fullAdded, fullInhouseCost: baseCost - fullAdded, added, hours, finalCost: baseCost - added, gp: baseline + added, ratePerHour: inHours ? fullAdded / inHours : null, share, invalid, months };
   });
   const baseline = sum(priced, 'baseline'), added = sum(priced, 'added'), hours = sum(priced, 'hours'), gp = baseline + added;
   const gm = price ? gp / price * 100 : null;
