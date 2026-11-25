@@ -1,0 +1,97 @@
+{
+  "name": "DeliveryScope",
+  "type": "object",
+  "properties": {
+    "estimate_id": {
+      "type": "string"
+    },
+    "scope_name": {
+      "type": "string"
+    },
+    "cost_code": {
+      "type": "string"
+    },
+    "subtrade_id": {
+      "type": "string"
+    },
+    "sub_name": {
+      "type": "string"
+    },
+    "sub_quote": {
+      "type": "number",
+      "minimum": 0
+    },
+    "materials_by_frontier": {
+      "type": "number",
+      "minimum": 0
+    },
+    "selections": {
+      "type": "number",
+      "minimum": 0
+    },
+    "equipment": {
+      "type": "number",
+      "minimum": 0
+    },
+    "other": {
+      "type": "number",
+      "minimum": 0
+    },
+    "inhouse_feasible": {
+      "type": "boolean",
+      "default": false
+    },
+    "inhouse_hours": {
+      "type": "number",
+      "minimum": 0
+    },
+    "inhouse_extra_materials": {
+      "type": "number",
+      "minimum": 0
+    },
+    "scheduled_start_month": {
+      "type": "string"
+    },
+    "duration_months": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 120,
+      "default": 1
+    },
+    "inhouse_share": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 0
+    },
+    "decision_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "estimate_id",
+    "scope_name"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

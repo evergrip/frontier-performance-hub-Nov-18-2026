@@ -83,6 +83,54 @@
       "type": "object",
       "description": "Build capacity model: pm_count, pm_monthly_value, pm_max_concurrent_jobs, crew_count, crew_hours_per_day, revenue_per_crew_hour, super_count, jobs_per_super, subtrade_monthly_value, mixed_in_house_share (blank = default/auto)"
     },
+    "delivery_mix": {
+      "type": "object",
+      "properties": {
+        "labour_rate": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0
+        },
+        "baseline_gm": {
+          "type": "number",
+          "default": 25,
+          "minimum": 0,
+          "maximum": 99.99
+        },
+        "benchmark_gm": {
+          "type": "number",
+          "default": 45,
+          "minimum": 0,
+          "maximum": 100
+        },
+        "hst_rate": {
+          "type": "number",
+          "default": 13,
+          "minimum": 0,
+          "maximum": 100
+        },
+        "forecast_months": {
+          "type": "integer",
+          "default": 18,
+          "minimum": 12,
+          "maximum": 60
+        },
+        "crew_staff_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "rls": {
+        "write": {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      }
+    },
     "scheduler_enabled": {
       "type": "boolean",
       "default": false,
@@ -99,7 +147,7 @@
     },
     "primary_color": {
       "type": "string",
-      "description": "Primary brand color (hex), used for active nav items and accents"
+      "description": "Primary brand color (hex), used for the sidebar icon gradient"
     },
     "accent_color": {
       "type": "string",
@@ -107,18 +155,18 @@
     },
     "feasibility_template_doc_id": {
       "type": "string",
-      "description": "Google Docs document ID to use as a template for feasibility reports."
+      "description": "Google Docs template ID to use as a template for feasibility reports."
     },
     "lead_alert_fields": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "Which fields to include in lead assignment alert emails."
+      "description": "Which lead fields to include in lead assignment alert emails."
     },
     "raci_definitions": {
       "type": "object",
-      "description": "Global RACI role definitions",
+      "description": "Global RACI definitions",
       "properties": {
         "responsible": {
           "type": "string",

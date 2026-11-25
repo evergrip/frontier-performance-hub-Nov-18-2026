@@ -22,6 +22,7 @@ const CommissionAuditPage = lazy(() => import('./pages/CommissionAudit'));
 const CoreVerification = lazy(() => import('@/pages/CoreVerification'));
 const UncontactedLeads = lazy(() => import('@/pages/UncontactedLeads'));
 const PlanningApplicationLeads = lazy(() => import('@/pages/PlanningApplicationLeads'));
+const DeliveryMix = lazy(() => import('@/pages/DeliveryMix'));
 
 
 
@@ -104,6 +105,7 @@ const AuthenticatedApp = () => {
         <Route path="/UncontactedLeads" element={<LayoutWrapper currentPageName="UncontactedLeads"><UncontactedLeads /></LayoutWrapper>} />
         <Route path="/PlanningApplicationLeads" element={<LayoutWrapper currentPageName="PlanningApplicationLeads"><PlanningApplicationLeads /></LayoutWrapper>} />
 
+        <Route path="/DeliveryMix" element={<LayoutWrapper currentPageName="DeliveryMix"><DeliveryMix /></LayoutWrapper>} />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </PageSuspense>

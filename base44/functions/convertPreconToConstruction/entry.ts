@@ -23,6 +23,16 @@ export default async function(req) {
     if (job.existing) { const forecast = await base44.entities.GrossProfitForecast.update(job.existing.id, { job_key: job.key, project_id: project.id }); await syncGpTiming(base44, job, forecast); }
     const phase_history = precon.status === 'closed_won' ? precon.phase_history || [] : [...(precon.phase_history || []), { status: 'closed_won', entered_date: new Date().toISOString(), source: 'sale' }];
     await base44.entities.Sale.update(precon.id, { status: 'closed_won', contract_value: Number(finalValue), phase_history, converted_to_project_id: project.id });
+    // Attach the delivery estimate without changing any sale or project forecast fields.
+    try {
+      const estimates = base44.asServiceRole.entities.DeliveryEstimate;
+      const { items } = await estimates.filter({ sale_id: { $in: [precon.id, constructionSale.id] } }, { limit: 10 });
+      const estimate = items.find(item => item.sale_id === precon.id) || items[0];
+      if (estimate && estimate.project_id !== project.id) await estimates.update(estimate.id, { project_id: project.id });
+    } catch (error) {
+      // The module can still follow the existing Sale/Project relationship if this write fails.
+      console.error('Delivery estimate project link', project.id, error.message);
+    }
     // The conversion is committed. A downstream commission error is not a failed conversion.
     let commissionWarning;
     const commissionRequests = [

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { base44 } from '@/api/base44Client';
-import { hasPermission } from '@/lib/permissions';
+import { hasPageAccess, hasPermission } from '@/lib/permissions';
 import { useQuery } from '@tanstack/react-query';
 import { 
   LayoutDashboard, Users, Target, Briefcase, Building2, 
@@ -79,11 +79,10 @@ export default function Layout({ children, currentPageName }) {
     },
     {
       label: 'Operations',
-      permission: 'operations',
       items: [
-        ...(schedulerEnabled ? [{ name: 'Scheduler', icon: CalendarDays, page: 'Scheduler' }] : []),
-        { name: 'Budgets', icon: Wallet, page: 'Budgets' },
-
+        ...(schedulerEnabled && hasPermission(user, 'operations') ? [{ name: 'Scheduler', icon: CalendarDays, page: 'Scheduler' }] : []),
+        ...(hasPermission(user, 'operations') ? [{ name: 'Budgets', icon: Wallet, page: 'Budgets' }] : []),
+        ...(hasPageAccess(user, 'DeliveryMix') ? [{ name: 'Delivery Mix & GP', icon: PieChart, page: 'DeliveryMix' }] : []),
       ]
     },
     {
@@ -231,6 +230,7 @@ export default function Layout({ children, currentPageName }) {
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navigationSections.filter(section => {
+                if (!section.items.length) return false;
                 if (!section.permission) {
                   // If section has no top-level permission, check if at least one item is accessible
                   if (section.items?.some(i => i.permission)) {

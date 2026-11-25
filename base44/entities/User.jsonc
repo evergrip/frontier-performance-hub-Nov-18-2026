@@ -38,7 +38,14 @@
       "items": {
         "type": "string"
       },
-      "description": "Section access permissions: pipeline, operations, insights, company, commissions_admin, varcomp_admin, company_admin"
+      "description": "Section access permissions: pipeline, operations, insights, company, commissions_admin, varcomp_admin, company_admin",
+      "rls": {
+        "write": {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      }
     },
     "commission_rule_ids": {
       "type": "array",

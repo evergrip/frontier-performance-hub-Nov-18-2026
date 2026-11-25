@@ -45,6 +45,20 @@ export const PERMISSION_SECTIONS = [
     pages: ['Scheduler', 'Budgets', 'BudgetDetail', 'BudgetWizard', 'Meetings'],
   },
   {
+    key: 'delivery_mix_estimate',
+    label: 'Delivery Mix — Estimator',
+    description: 'Edit estimates and apply delivery-mix values to job forecasts',
+    pages: ['DeliveryMix'],
+    group: 'Operations',
+  },
+  {
+    key: 'delivery_mix_operations',
+    label: 'Delivery Mix — Operations',
+    description: 'Plan self-perform allocations and manage crew availability',
+    pages: ['DeliveryMix'],
+    group: 'Operations',
+  },
+  {
     key: 'insights',
     label: 'Insights',
     description: 'Reports, KPI Dashboard, My Performance',

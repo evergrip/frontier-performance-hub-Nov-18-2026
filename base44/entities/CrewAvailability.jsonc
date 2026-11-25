@@ -1,0 +1,52 @@
+{
+  "name": "CrewAvailability",
+  "type": "object",
+  "properties": {
+    "staff_detail_id": {
+      "type": "string"
+    },
+    "month": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+    },
+    "available_hours": {
+      "type": "number",
+      "minimum": 0
+    },
+    "reserved_hours": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "staff_detail_id",
+    "month",
+    "available_hours"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
