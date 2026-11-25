@@ -9,6 +9,7 @@ export const cad = n => n == null ? '—' : wholeCad.format(n);
 export const cadCents = n => n == null ? '—' : exactCad.format(n);
 export const pct = (n, digits = 1) => n == null ? '—' : `${n.toFixed(digits)}%`;
 export const hrs = n => n == null ? '—' : `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 1 }).format(n)} h`;
+export const preciseHours = n => `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 2 }).format(n)} h`;
 const sum = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
 const subCost = s => costFields.reduce((total, key) => total + (s[key] || 0), 0);
 const tiers = [[45,'Maximum in-house'],[40,'Predominantly in-house'],[35,'Balanced hybrid'],[30,'Predominantly subbed'],[25,'Fully subbed']];
