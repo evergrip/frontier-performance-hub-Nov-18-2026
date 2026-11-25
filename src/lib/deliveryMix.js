@@ -3,8 +3,11 @@ import { deliveryMonths, getCrewCapacityByMonth } from '@/lib/deliveryMixCapacit
 export const mixDefaults = { labour_rate: 50, baseline_gm: 25, benchmark_gm: 45, hst_rate: 13, forecast_months: 18, crew_staff_ids: [] };
 export const costFields = ['sub_quote', 'materials_by_frontier', 'selections', 'equipment', 'other'];
 export const committed = job => ['Signed', 'In construction'].includes(job.bucket);
-export const cad = n => n == null ? '—' : new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(n);
-export const pct = n => n == null ? '—' : `${n.toFixed(1)}%`;
+const formatCad = digits => new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: digits, minimumFractionDigits: digits });
+const wholeCad = formatCad(0), exactCad = formatCad(2);
+export const cad = n => n == null ? '—' : wholeCad.format(n);
+export const cadCents = n => n == null ? '—' : exactCad.format(n);
+export const pct = (n, digits = 1) => n == null ? '—' : `${n.toFixed(digits)}%`;
 export const hrs = n => n == null ? '—' : `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 1 }).format(n)} h`;
 const sum = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
 const subCost = s => costFields.reduce((total, key) => total + (s[key] || 0), 0);
@@ -27,7 +30,7 @@ export function priceJob(job, scopes, settings) {
   });
   const baseline = sum(priced, 'baseline'), added = sum(priced, 'added'), hours = sum(priced, 'hours'), gp = baseline + added;
   const gm = price ? gp / price * 100 : null;
-  return { ...job, price, withHst: price * (1 + settings.hst_rate / 100), scopes: priced, baseline, baselineGM: price ? baseline / price * 100 : null, added, hours, gp, gm, perHour: hours ? added / hours : null, tier: gm == null ? '—' : tiers.find(([threshold]) => gm + 1e-8 >= threshold)?.[1] || 'Below target' };
+  return { ...job, price, withHst: price * (1 + settings.hst_rate / 100), scopes: priced, baselineCogs: cost, cogs: sum(priced, 'finalCost'), baseline, baselineGM: price ? baseline / price * 100 : null, added, hours, gp, gm, perHour: hours ? added / hours : null, tier: gm == null ? '—' : tiers.find(([threshold]) => gm + 1e-8 >= threshold)?.[1] || 'Below target' };
 }
 
 export function scheduleScopes(scopes) {

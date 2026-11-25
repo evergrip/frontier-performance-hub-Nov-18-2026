@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cad, costFields } from '@/lib/deliveryMix';
+import { cadCents, costFields, pct } from '@/lib/deliveryMix';
 import { costLabels } from '@/components/deliveryMix/estimateSheetValues';
 
-export default function EstimateSheetRow({ row, index, trades, onChange, onRemove, canSchedule, focus }) {
+export default function EstimateSheetRow({ row, priced, index, trades, onChange, onRemove, canSchedule, focus }) {
   const [details, setDetails] = useState(false);
   const label = name => `${name}, scope ${index + 1}`;
   const field = (key, name, attrs = {}) => <Input aria-label={label(name)} value={row[key] ?? ''} onChange={e => onChange({ [key]: e.target.value })} {...attrs} />;
   const amount = { type: 'number', min: 0, step: '0.01', placeholder: '0', className: 'tabular-nums' };
   const share = Number(row.inhouse_share || 0);
+  const canSlide = row.inhouse_feasible && Number(row.inhouse_hours) > 0;
+  const impact = !Number(row.inhouse_hours) ? 'Enter hours to enable' : !row.inhouse_feasible ? 'Enable in-house in Details' : Math.abs(priced.fullAdded) < 1e-8 ? 'Same cost either way' : `${cadCents(Math.abs(priced.fullAdded))} ${priced.fullAdded > 0 ? 'more' : 'less'} GP at 100%`;
   const hasTrade = trades.some(trade => trade.id === row.subtrade_id);
   return <>
     <tr className="border-b align-top">
@@ -21,8 +23,8 @@ export default function EstimateSheetRow({ row, index, trades, onChange, onRemov
       </select>{!row.subtrade_id && (row.manualVendor || row.sub_name) && <div className="mt-1">{field('sub_name', 'Subcontractor name', { placeholder: 'Enter name', maxLength: 200 })}</div>}</td>
       <td className="p-2">{field('sub_quote', 'Sub quote', amount)}</td>
       <td className="p-2">{field('inhouse_hours', 'Full in-house hours', { ...amount, onChange: e => onChange({ inhouse_hours: e.target.value, inhouse_feasible: Number(e.target.value) > 0, ...(Number(e.target.value) > 0 ? {} : { inhouse_share: 0 }) }) })}</td>
-      <td className="p-2"><div className="flex h-9 items-center gap-2"><input type="range" min="0" max="100" step="1" aria-label={label('In-house percentage')} value={share} disabled={!row.inhouse_feasible || Number(row.inhouse_hours) <= 0} onChange={e => onChange({ inhouse_share: Number(e.target.value) })} className="min-w-0 flex-1 accent-primary disabled:opacity-40" /><span className="w-10 text-right text-xs tabular-nums">{share}%</span></div></td>
-      <td className="whitespace-nowrap p-2 pt-4 text-right tabular-nums">{cad(costFields.reduce((sum, key) => sum + Number(row[key] || 0), 0))}</td>
+      <td className="p-2"><div className="flex h-9 items-center gap-2"><input type="range" min="0" max="100" step="1" aria-label={label('In-house percentage')} value={share} disabled={!canSlide} onChange={e => onChange({ inhouse_share: Number(e.target.value) })} className="min-w-0 flex-1 accent-primary disabled:opacity-40" /><span className="w-10 text-right text-xs tabular-nums">{share}%</span></div><p className="text-xs text-muted-foreground">{impact}</p></td>
+      <td className="p-2 pt-3 text-right text-xs tabular-nums"><div className="break-words font-semibold">{cadCents(priced.finalCost)}</div><div className="mt-1 break-words text-muted-foreground">{cadCents(priced.gp)} GP · {pct(priced.sell ? priced.gp / priced.sell * 100 : null, 2)}</div></td>
       <td className="whitespace-nowrap p-2"><Button type="button" variant="ghost" size="sm" className="px-1.5" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? 'Less' : 'Details'}</Button>{!row.id && <Button type="button" variant="ghost" size="sm" className="px-1.5" aria-label={label('Remove draft row')} onClick={onRemove}>×</Button>}</td>
     </tr>
     {details && <tr className="border-b bg-muted/30"><td colSpan={7} className="p-3"><div className="grid grid-cols-4 gap-3">
